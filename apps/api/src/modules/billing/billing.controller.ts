@@ -1,0 +1,58 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Query,
+  ParseUUIDPipe,
+} from "@nestjs/common";
+import { BillingService } from "./billing.service";
+import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
+import { Roles } from "../../common/decorators/roles.decorator";
+import {
+  CreateInvoiceSchema,
+  RecordPaymentSchema,
+  InvoiceListQuerySchema,
+  CreateInvoiceDto,
+  RecordPaymentDto,
+  InvoiceListQuery,
+} from "@cms/types";
+
+@Controller("invoices")
+@Roles("admin", "receptionist")
+export class BillingController {
+  constructor(private readonly service: BillingService) {}
+
+  @Get()
+  findAll(
+    @Query(new ZodValidationPipe(InvoiceListQuerySchema)) query: InvoiceListQuery
+  ) {
+    return this.service.findAll(query);
+  }
+
+  @Get(":id")
+  findOne(@Param("id", ParseUUIDPipe) id: string) {
+    return this.service.findById(id);
+  }
+
+  @Get(":id/receipt")
+  getReceipt(@Param("id", ParseUUIDPipe) id: string) {
+    return this.service.getReceiptUrl(id);
+  }
+
+  @Post()
+  create(
+    @Body(new ZodValidationPipe(CreateInvoiceSchema)) dto: CreateInvoiceDto
+  ) {
+    return this.service.create(dto);
+  }
+
+  @Post(":id/payments")
+  recordPayment(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(RecordPaymentSchema)) dto: RecordPaymentDto
+  ) {
+    return this.service.recordPayment(id, dto);
+  }
+}

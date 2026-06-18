@@ -1,0 +1,523 @@
+// Clinica Mais Saude 360 — Prisma Schema (Phase 1)
+// Canonical source: DATABASE-SCHEMA.md
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Gender {
+  male
+  female
+  other
+}
+
+enum StaffRole {
+  admin
+  doctor
+  nurse
+  receptionist
+  lab_tech
+  corporate_hr
+}
+
+enum AppointmentStatus {
+  pending
+  confirmed
+  checked_in
+  completed
+  cancelled
+  no_show
+}
+
+enum AppointmentSource {
+  web
+  whatsapp
+  phone
+  walk_in
+}
+
+enum InvoiceStatus {
+  draft
+  issued
+  partially_paid
+  paid
+  overdue
+  cancelled
+}
+
+enum PaymentMethod {
+  cash
+  bank_transfer
+  health_plan
+  vinti4
+}
+
+enum ReminderChannel {
+  whatsapp
+  sms
+  email
+}
+
+enum DocumentType {
+  national_id
+  consent_form
+  exam_result
+  prescription
+  referral
+  other
+}
+
+enum WaitlistStatus {
+  waiting
+  notified
+  booked
+  expired
+}
+
+// ─── Core ────────────────────────────────────────────────────────────────────
+
+model Patient {
+  id                    String    @id @default(uuid())
+  fullName              String    @db.VarChar(150)
+  dateOfBirth           DateTime  @db.Date
+  gender                Gender
+  /// AES-256-GCM encrypted at application layer
+  nif                   String?   @db.VarChar(50)
+  phone                 String    @db.VarChar(30)
+  email                 String?   @db.VarChar(150)
+  address               String?   @db.VarChar(300)
+  emergencyContactName  String?   @db.VarChar(150)
+  emergencyContactPhone String?   @db.VarChar(30)
+  consentGiven          Boolean   @default(false)
+  consentGivenAt        DateTime?
+  healthPlanId          String?
+  deletedAt             DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  appointments      Appointment[]
+  documents         PatientDocument[]
+  notes             PatientNote[]
+  communicationLogs CommunicationLog[]
+  invoices          Invoice[]
+  waitlistEntries   Waitlist[]
+  healthPlan        HealthPlan?        @relation(fields: [healthPlanId], references: [id])
+
+  @@unique([phone])
+  @@index([fullName])
+  @@index([nif])
+  @@index([deletedAt])
+  @@map("patients")
+}
+
+model Staff {
+  id            String    @id @default(uuid())
+  keycloakId    String    @unique @db.VarChar(36)
+  fullName      String    @db.VarChar(150)
+  email         String    @unique @db.VarChar(150)
+  role          StaffRole
+  specialtyCode String?   @db.VarChar(50)
+  phone         String?   @db.VarChar(30)
+  deletedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  appointments  Appointment[]
+  shifts        StaffShift[]
+  availability  StaffAvailability[]
+  leaveRequests LeaveRequest[]
+  patientNotes  PatientNote[]
+
+  @@index([role])
+  @@index([deletedAt])
+  @@map("staff")
+}
+
+model Service {
+  id              String   @id @default(uuid())
+  name            String   @db.VarChar(150)
+  code            String   @unique @db.VarChar(30)
+  description     String?  @db.VarChar(500)
+  durationMinutes Int      @default(30)
+  price           Decimal  @db.Decimal(10, 2)
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  appointments  Appointment[]
+  invoiceItems  InvoiceItem[]
+  waitlistItems Waitlist[]
+  examRequests  ExamRequest[]
+
+  @@map("services")
+}
+
+model Room {
+  id          String   @id @default(uuid())
+  name        String   @db.VarChar(100)
+  floor       String?  @db.VarChar(20)
+  capacity    Int      @default(1)
+  equipment   Json?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  appointments Appointment[]
+
+  @@map("rooms")
+}
+
+// ─── Appointments ────────────────────────────────────────────────────────────
+
+model Appointment {
+  id                 String            @id @default(uuid())
+  patientId          String
+  staffId            String
+  serviceId          String
+  roomId             String?
+  scheduledAt        DateTime
+  durationMinutes    Int               @default(30)
+  status             AppointmentStatus @default(pending)
+  source             AppointmentSource @default(web)
+  notes              String?           @db.VarChar(500)
+  cancellationReason String?           @db.VarChar(300)
+  checkedInAt        DateTime?
+  completedAt        DateTime?
+  deletedAt          DateTime?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  patient   Patient  @relation(fields: [patientId], references: [id])
+  staff     Staff    @relation(fields: [staffId], references: [id])
+  service   Service  @relation(fields: [serviceId], references: [id])
+  room      Room?    @relation(fields: [roomId], references: [id])
+  reminders AppointmentReminder[]
+  invoices  Invoice[]
+  examRequests ExamRequest[]
+
+  @@index([patientId])
+  @@index([staffId])
+  @@index([scheduledAt])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("appointments")
+}
+
+model AppointmentReminder {
+  id             String          @id @default(uuid())
+  appointmentId  String
+  channel        ReminderChannel
+  scheduledFor   DateTime
+  bullJobId      String?         @db.VarChar(100)
+  sentAt         DateTime?
+  createdAt      DateTime        @default(now())
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  @@index([appointmentId])
+  @@index([scheduledFor])
+  @@map("appointment_reminders")
+}
+
+model Waitlist {
+  id                String         @id @default(uuid())
+  patientId         String
+  serviceId         String
+  staffId           String?
+  preferredDateFrom DateTime?      @db.Date
+  preferredDateTo   DateTime?      @db.Date
+  notes             String?        @db.VarChar(300)
+  status            WaitlistStatus @default(waiting)
+  notifiedAt        DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  patient Patient @relation(fields: [patientId], references: [id])
+  service Service @relation(fields: [serviceId], references: [id])
+
+  @@index([patientId])
+  @@index([serviceId])
+  @@index([status])
+  @@map("waitlist")
+}
+
+// ─── Patient Records ─────────────────────────────────────────────────────────
+
+model PatientDocument {
+  id          String       @id @default(uuid())
+  patientId   String
+  type        DocumentType
+  fileName    String       @db.VarChar(200)
+  r2Key       String       @db.VarChar(300)
+  mimeType    String       @db.VarChar(100)
+  sizeBytes   Int
+  uploadedBy  String
+  createdAt   DateTime     @default(now())
+
+  patient Patient @relation(fields: [patientId], references: [id])
+
+  @@index([patientId])
+  @@map("patient_documents")
+}
+
+model PatientNote {
+  id        String   @id @default(uuid())
+  patientId String
+  content   String   @db.VarChar(2000)
+  createdBy String
+  createdAt DateTime @default(now())
+
+  patient    Patient @relation(fields: [patientId], references: [id])
+  staffAuthor Staff?  @relation(fields: [createdBy], references: [id])
+
+  @@index([patientId])
+  @@map("patient_notes")
+}
+
+model CommunicationLog {
+  id         String   @id @default(uuid())
+  patientId  String
+  channel    String   @db.VarChar(30)
+  direction  String   @db.VarChar(10)
+  subject    String?  @db.VarChar(200)
+  body       String?  @db.Text
+  status     String   @db.VarChar(30)
+  externalId String?  @db.VarChar(100)
+  createdAt  DateTime @default(now())
+
+  patient Patient @relation(fields: [patientId], references: [id])
+
+  @@index([patientId])
+  @@index([channel])
+  @@map("communication_log")
+}
+
+// ─── Companies ───────────────────────────────────────────────────────────────
+
+model Company {
+  id        String    @id @default(uuid())
+  name      String    @db.VarChar(150)
+  taxId     String    @unique @db.VarChar(50)
+  email     String?   @db.VarChar(150)
+  phone     String?   @db.VarChar(30)
+  address   String?   @db.VarChar(300)
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  healthPlans HealthPlan[]
+
+  @@index([active])
+  @@map("companies")
+}
+
+// ─── Health Plans ─────────────────────────────────────────────────────────────
+
+model HealthPlanProduct {
+  id              String   @id @default(uuid())
+  name            String   @db.VarChar(150)
+  code            String   @unique @db.VarChar(30)
+  description     String?  @db.VarChar(500)
+  monthlyFee      Decimal  @db.Decimal(10, 2)
+  maxMembers      Int?
+  coverageRules   Json?
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  healthPlans HealthPlan[]
+
+  @@map("health_plan_products")
+}
+
+model HealthPlan {
+  id              String    @id @default(uuid())
+  productId       String
+  holderPatientId String?
+  companyId       String?
+  planNumber      String    @unique @db.VarChar(50)
+  startDate       DateTime  @db.Date
+  endDate         DateTime? @db.Date
+  active          Boolean   @default(true)
+  usageCount      Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  product  HealthPlanProduct @relation(fields: [productId], references: [id])
+  company  Company?          @relation(fields: [companyId], references: [id])
+  patients Patient[]
+
+  @@index([holderPatientId])
+  @@index([companyId])
+  @@map("health_plans")
+}
+
+// ─── Billing ─────────────────────────────────────────────────────────────────
+
+model Invoice {
+  id            String        @id @default(uuid())
+  invoiceNumber String        @unique @db.VarChar(20)
+  patientId     String
+  appointmentId String?
+  status        InvoiceStatus @default(draft)
+  subtotal      Decimal       @db.Decimal(10, 2)
+  total         Decimal       @db.Decimal(10, 2)
+  amountPaid    Decimal       @default(0) @db.Decimal(10, 2)
+  notes         String?       @db.VarChar(500)
+  dueDate       DateTime?     @db.Date
+  issuedAt      DateTime?
+  pdfR2Key      String?       @db.VarChar(300)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  patient     Patient      @relation(fields: [patientId], references: [id])
+  appointment Appointment? @relation(fields: [appointmentId], references: [id])
+  items       InvoiceItem[]
+  payments    Payment[]
+
+  @@index([patientId])
+  @@index([status])
+  @@index([issuedAt])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id          String  @id @default(uuid())
+  invoiceId   String
+  serviceId   String?
+  description String  @db.VarChar(200)
+  quantity    Int     @default(1)
+  unitPrice   Decimal @db.Decimal(10, 2)
+  total       Decimal @db.Decimal(10, 2)
+
+  invoice Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  service Service? @relation(fields: [serviceId], references: [id])
+
+  @@index([invoiceId])
+  @@map("invoice_items")
+}
+
+model Payment {
+  id        String        @id @default(uuid())
+  invoiceId String
+  amount    Decimal       @db.Decimal(10, 2)
+  method    PaymentMethod
+  reference String?       @db.VarChar(100)
+  paidAt    DateTime      @default(now())
+  createdAt DateTime      @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@map("payments")
+}
+
+// ─── Exams (Phase 1 stub, fully used in M5) ──────────────────────────────────
+
+model ExamRequest {
+  id            String   @id @default(uuid())
+  patientId     String
+  appointmentId String?
+  serviceId     String
+  requestedBy   String
+  notes         String?  @db.VarChar(500)
+  status        String   @default("pending") @db.VarChar(30)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  service     Service     @relation(fields: [serviceId], references: [id])
+  appointment Appointment? @relation(fields: [appointmentId], references: [id])
+
+  @@index([patientId])
+  @@map("exam_requests")
+}
+
+// ─── Staff Scheduling ────────────────────────────────────────────────────────
+
+model StaffShift {
+  id        String   @id @default(uuid())
+  staffId   String
+  shiftDate DateTime @db.Date
+  startTime String   @db.VarChar(5)
+  endTime   String   @db.VarChar(5)
+  notes     String?  @db.VarChar(200)
+  createdAt DateTime @default(now())
+
+  staff Staff @relation(fields: [staffId], references: [id])
+
+  @@unique([staffId, shiftDate])
+  @@index([shiftDate])
+  @@map("staff_shifts")
+}
+
+model StaffAvailability {
+  id          String  @id @default(uuid())
+  staffId     String
+  dayOfWeek   Int
+  startTime   String  @db.VarChar(5)
+  endTime     String  @db.VarChar(5)
+  slotMinutes Int     @default(30)
+  active      Boolean @default(true)
+
+  staff Staff @relation(fields: [staffId], references: [id])
+
+  @@unique([staffId, dayOfWeek, startTime])
+  @@map("staff_availability")
+}
+
+model LeaveRequest {
+  id        String   @id @default(uuid())
+  staffId   String
+  startDate DateTime @db.Date
+  endDate   DateTime @db.Date
+  reason    String?  @db.VarChar(300)
+  status    String   @default("pending") @db.VarChar(30)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  staff Staff @relation(fields: [staffId], references: [id])
+
+  @@index([staffId])
+  @@map("leave_requests")
+}
+
+// ─── Public Holidays ─────────────────────────────────────────────────────────
+
+model PublicHoliday {
+  id          String   @id @default(uuid())
+  date        DateTime @db.Date
+  name        String   @db.VarChar(100)
+  recurring   Boolean  @default(true)
+  countryCode String   @default("CV") @db.VarChar(5)
+  createdAt   DateTime @default(now())
+
+  @@unique([date, countryCode])
+  @@map("public_holidays")
+}
+
+// ─── Audit ───────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String?  @db.VarChar(36)
+  actorEmail String?  @db.VarChar(150)
+  action     String   @db.VarChar(100)
+  resource   String   @db.VarChar(100)
+  resourceId String?  @db.VarChar(36)
+  ipAddress  String?  @db.VarChar(45)
+  userAgent  String?  @db.VarChar(300)
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([actorId])
+  @@index([resource, resourceId])
+  @@index([createdAt])
+  @@map("audit_log")
+}

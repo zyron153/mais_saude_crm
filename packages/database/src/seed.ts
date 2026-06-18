@@ -1,0 +1,389 @@
+import { PrismaClient } from "@prisma/client";
+
+const prisma = new PrismaClient();
+
+// Fixed Keycloak UUIDs — must match infra/keycloak/maissaude-realm.json user `id` fields
+const KEYCLOAK_IDS = {
+  admin:        "a0000000-0000-0000-0000-000000000001",
+  drSilva:      "a0000000-0000-0000-0000-000000000002",
+  drCosta:      "a0000000-0000-0000-0000-000000000003",
+  nurseAndrade: "a0000000-0000-0000-0000-000000000004",
+  recepAna:     "a0000000-0000-0000-0000-000000000005",
+  recepJoao:    "a0000000-0000-0000-0000-000000000006",
+  labPedro:     "a0000000-0000-0000-0000-000000000007",
+};
+
+async function main() {
+  console.warn("Seeding database...");
+
+  // ─── Services ──────────────────────────────────────────────────────────────
+  const services = await Promise.all([
+    prisma.service.upsert({
+      where: { code: "CONS-GERAL" },
+      update: {},
+      create: {
+        name: "Consulta Geral",
+        code: "CONS-GERAL",
+        description: "Consulta médica geral",
+        durationMinutes: 30,
+        price: 1500,
+      },
+    }),
+    prisma.service.upsert({
+      where: { code: "CONS-ESP" },
+      update: {},
+      create: {
+        name: "Consulta Especialidade",
+        code: "CONS-ESP",
+        description: "Consulta com especialista",
+        durationMinutes: 45,
+        price: 2500,
+      },
+    }),
+    prisma.service.upsert({
+      where: { code: "EXAM-LAB" },
+      update: {},
+      create: {
+        name: "Exame Laboratorial",
+        code: "EXAM-LAB",
+        description: "Análises clínicas",
+        durationMinutes: 15,
+        price: 800,
+      },
+    }),
+    prisma.service.upsert({
+      where: { code: "EXAM-ULTRA" },
+      update: {},
+      create: {
+        name: "Ecografia",
+        code: "EXAM-ULTRA",
+        description: "Exame de ecografia",
+        durationMinutes: 30,
+        price: 3500,
+      },
+    }),
+    prisma.service.upsert({
+      where: { code: "DENT-CONS" },
+      update: {},
+      create: {
+        name: "Consulta Dentária",
+        code: "DENT-CONS",
+        description: "Consulta de medicina dentária",
+        durationMinutes: 45,
+        price: 2000,
+      },
+    }),
+    prisma.service.upsert({
+      where: { code: "HOME-VISIT" },
+      update: {},
+      create: {
+        name: "Visita Domiciliária",
+        code: "HOME-VISIT",
+        description: "Consulta no domicílio do paciente",
+        durationMinutes: 60,
+        price: 4000,
+      },
+    }),
+  ]);
+
+  // ─── Rooms ─────────────────────────────────────────────────────────────────
+  const rooms = await Promise.all([
+    prisma.room.upsert({
+      where: { id: "00000000-0000-0000-0000-000000000001" },
+      update: {},
+      create: {
+        id: "00000000-0000-0000-0000-000000000001",
+        name: "Consultório 1",
+        floor: "R/C",
+        capacity: 1,
+        equipment: { items: ["estetoscópio", "esfigmomanómetro"] },
+      },
+    }),
+    prisma.room.upsert({
+      where: { id: "00000000-0000-0000-0000-000000000002" },
+      update: {},
+      create: {
+        id: "00000000-0000-0000-0000-000000000002",
+        name: "Consultório 2",
+        floor: "R/C",
+        capacity: 1,
+        equipment: { items: ["estetoscópio", "esfigmomanómetro"] },
+      },
+    }),
+    prisma.room.upsert({
+      where: { id: "00000000-0000-0000-0000-000000000003" },
+      update: {},
+      create: {
+        id: "00000000-0000-0000-0000-000000000003",
+        name: "Sala de Ecografia",
+        floor: "1º",
+        capacity: 1,
+        equipment: { items: ["ecógrafo Mindray DC-80"] },
+      },
+    }),
+    prisma.room.upsert({
+      where: { id: "00000000-0000-0000-0000-000000000004" },
+      update: {},
+      create: {
+        id: "00000000-0000-0000-0000-000000000004",
+        name: "Laboratório",
+        floor: "1º",
+        capacity: 3,
+        equipment: { items: ["centrifugadora", "microscópio", "hemograma automático"] },
+      },
+    }),
+    prisma.room.upsert({
+      where: { id: "00000000-0000-0000-0000-000000000005" },
+      update: {},
+      create: {
+        id: "00000000-0000-0000-0000-000000000005",
+        name: "Sala de Dentária",
+        floor: "1º",
+        capacity: 1,
+        equipment: { items: ["cadeira dentária", "unidade de raio-X dental"] },
+      },
+    }),
+  ]);
+
+  // ─── Staff ─────────────────────────────────────────────────────────────────
+  const [drSilva, drCosta, nurseAndrade, recepAna, recepJoao, labPedro, adminUser] =
+    await Promise.all([
+      prisma.staff.upsert({
+        where: { keycloakId: KEYCLOAK_IDS.drSilva },
+        update: {},
+        create: {
+          keycloakId: KEYCLOAK_IDS.drSilva,
+          fullName: "Dr. Carlos Silva",
+          email: "dr.silva@maissaudecv.com",
+          role: "doctor",
+          specialtyCode: "CLINICA-GERAL",
+          phone: "+2389912345",
+        },
+      }),
+      prisma.staff.upsert({
+        where: { keycloakId: KEYCLOAK_IDS.drCosta },
+        update: {},
+        create: {
+          keycloakId: KEYCLOAK_IDS.drCosta,
+          fullName: "Dra. Ana Costa",
+          email: "dr.costa@maissaudecv.com",
+          role: "doctor",
+          specialtyCode: "PEDIATRIA",
+          phone: "+2389923456",
+        },
+      }),
+      prisma.staff.upsert({
+        where: { keycloakId: KEYCLOAK_IDS.nurseAndrade },
+        update: {},
+        create: {
+          keycloakId: KEYCLOAK_IDS.nurseAndrade,
+          fullName: "Maria Andrade",
+          email: "maria.nurse@maissaudecv.com",
+          role: "nurse",
+          phone: "+2389934567",
+        },
+      }),
+      prisma.staff.upsert({
+        where: { keycloakId: KEYCLOAK_IDS.recepAna },
+        update: {},
+        create: {
+          keycloakId: KEYCLOAK_IDS.recepAna,
+          fullName: "Ana Lopes",
+          email: "ana.recepcao@maissaudecv.com",
+          role: "receptionist",
+          phone: "+2389945678",
+        },
+      }),
+      prisma.staff.upsert({
+        where: { keycloakId: KEYCLOAK_IDS.recepJoao },
+        update: {},
+        create: {
+          keycloakId: KEYCLOAK_IDS.recepJoao,
+          fullName: "João Monteiro",
+          email: "joao.recepcao@maissaudecv.com",
+          role: "receptionist",
+          phone: "+2389956789",
+        },
+      }),
+      prisma.staff.upsert({
+        where: { keycloakId: KEYCLOAK_IDS.labPedro },
+        update: {},
+        create: {
+          keycloakId: KEYCLOAK_IDS.labPedro,
+          fullName: "Pedro Ferreira",
+          email: "pedro.lab@maissaudecv.com",
+          role: "lab_tech",
+          phone: "+2389967890",
+        },
+      }),
+      prisma.staff.upsert({
+        where: { keycloakId: KEYCLOAK_IDS.admin },
+        update: {},
+        create: {
+          keycloakId: KEYCLOAK_IDS.admin,
+          fullName: "Administrador Sistema",
+          email: "admin@maissaudecv.com",
+          role: "admin",
+        },
+      }),
+    ]);
+
+  // ─── Staff availability (recurring weekly schedule) ─────────────────────────
+  // Dr. Silva: Mon–Fri 08:00–13:00
+  for (const day of [1, 2, 3, 4, 5]) {
+    await prisma.staffAvailability.upsert({
+      where: { staffId_dayOfWeek_startTime: { staffId: drSilva.id, dayOfWeek: day, startTime: "08:00" } },
+      update: {},
+      create: { staffId: drSilva.id, dayOfWeek: day, startTime: "08:00", endTime: "13:00" },
+    });
+  }
+  // Dr. Costa: Mon/Wed/Fri 14:00–18:00
+  for (const day of [1, 3, 5]) {
+    await prisma.staffAvailability.upsert({
+      where: { staffId_dayOfWeek_startTime: { staffId: drCosta.id, dayOfWeek: day, startTime: "14:00" } },
+      update: {},
+      create: { staffId: drCosta.id, dayOfWeek: day, startTime: "14:00", endTime: "18:00" },
+    });
+  }
+
+  // ─── Sample Patients ────────────────────────────────────────────────────────
+  const [p1, p2, p3, p4, p5] = await Promise.all([
+    prisma.patient.upsert({
+      where: { phone: "+2389800001" },
+      update: {},
+      create: {
+        fullName: "João Barros",
+        dateOfBirth: new Date("1985-03-15"),
+        gender: "male",
+        phone: "+2389800001",
+        email: "joao.barros@email.com",
+        nif: "123456789",
+        consentGiven: true,
+        consentGivenAt: new Date(),
+      },
+    }),
+    prisma.patient.upsert({
+      where: { phone: "+2389800002" },
+      update: {},
+      create: {
+        fullName: "Maria Tavares",
+        dateOfBirth: new Date("1992-07-22"),
+        gender: "female",
+        phone: "+2389800002",
+        email: "maria.tavares@email.com",
+        consentGiven: true,
+        consentGivenAt: new Date(),
+      },
+    }),
+    prisma.patient.upsert({
+      where: { phone: "+2389800003" },
+      update: {},
+      create: {
+        fullName: "António Fonseca",
+        dateOfBirth: new Date("1978-11-08"),
+        gender: "male",
+        phone: "+2389800003",
+        consentGiven: true,
+        consentGivenAt: new Date(),
+      },
+    }),
+    prisma.patient.upsert({
+      where: { phone: "+2389800004" },
+      update: {},
+      create: {
+        fullName: "Carla Neves",
+        dateOfBirth: new Date("2001-05-30"),
+        gender: "female",
+        phone: "+2389800004",
+        email: "carla.neves@email.com",
+        consentGiven: true,
+        consentGivenAt: new Date(),
+      },
+    }),
+    prisma.patient.upsert({
+      where: { phone: "+2389800005" },
+      update: {},
+      create: {
+        fullName: "Pedro Gonçalves",
+        dateOfBirth: new Date("1955-09-12"),
+        gender: "male",
+        phone: "+2389800005",
+        consentGiven: true,
+        consentGivenAt: new Date(),
+      },
+    }),
+  ]);
+
+  // ─── Sample Appointments (next 7 days) ─────────────────────────────────────
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(9, 0, 0, 0);
+
+  const makeSlot = (daysOffset: number, hour: number): Date => {
+    const d = new Date();
+    d.setDate(d.getDate() + daysOffset);
+    d.setHours(hour, 0, 0, 0);
+    return d;
+  };
+
+  const consGeral = services.find((s) => s.code === "CONS-GERAL")!;
+  const consEsp   = services.find((s) => s.code === "CONS-ESP")!;
+  const examLab   = services.find((s) => s.code === "EXAM-LAB")!;
+
+  const room1 = rooms[0];
+  const room2 = rooms[1];
+
+  const appointmentsData = [
+    { patientId: p1.id, staffId: drSilva.id, serviceId: consGeral.id, roomId: room1.id, scheduledAt: makeSlot(1, 8),  status: "confirmed" as const },
+    { patientId: p2.id, staffId: drSilva.id, serviceId: consGeral.id, roomId: room1.id, scheduledAt: makeSlot(1, 9),  status: "pending"   as const },
+    { patientId: p3.id, staffId: drCosta.id, serviceId: consEsp.id,   roomId: room2.id, scheduledAt: makeSlot(1, 14), status: "confirmed" as const },
+    { patientId: p4.id, staffId: drSilva.id, serviceId: consGeral.id, roomId: room1.id, scheduledAt: makeSlot(2, 8),  status: "pending"   as const },
+    { patientId: p5.id, staffId: drCosta.id, serviceId: consEsp.id,   roomId: room2.id, scheduledAt: makeSlot(2, 14), status: "pending"   as const },
+    { patientId: p1.id, staffId: drSilva.id, serviceId: examLab.id,   roomId: room1.id, scheduledAt: makeSlot(3, 10), status: "pending"   as const },
+    { patientId: p2.id, staffId: drCosta.id, serviceId: consEsp.id,   roomId: room2.id, scheduledAt: makeSlot(4, 15), status: "pending"   as const },
+    { patientId: p3.id, staffId: drSilva.id, serviceId: consGeral.id, roomId: room1.id, scheduledAt: makeSlot(5, 8),  status: "pending"   as const },
+    // 2 past appointments (already completed)
+    { patientId: p4.id, staffId: drSilva.id, serviceId: consGeral.id, roomId: room1.id, scheduledAt: makeSlot(-3, 9), status: "completed" as const },
+    { patientId: p5.id, staffId: drCosta.id, serviceId: consEsp.id,   roomId: room2.id, scheduledAt: makeSlot(-1, 14), status: "completed" as const },
+  ];
+
+  for (const appt of appointmentsData) {
+    await prisma.appointment.create({ data: { ...appt, source: "web" } });
+  }
+
+  // ─── Cabo Verde Public Holidays ────────────────────────────────────────────
+  const year = new Date().getFullYear();
+  const holidays = [
+    { date: `${year}-01-01`, name: "Ano Novo" },
+    { date: `${year}-01-20`, name: "Dia dos Heróis Nacionais" },
+    { date: `${year}-03-08`, name: "Dia Internacional da Mulher" },
+    { date: `${year}-04-18`, name: "Boa Sexta-feira" },
+    { date: `${year}-05-01`, name: "Dia do Trabalhador" },
+    { date: `${year}-06-01`, name: "Dia da Criança" },
+    { date: `${year}-07-05`, name: "Dia da Independência Nacional" },
+    { date: `${year}-08-15`, name: "Assunção de Nossa Senhora" },
+    { date: `${year}-11-01`, name: "Dia de Todos os Santos" },
+    { date: `${year}-12-25`, name: "Natal" },
+  ];
+
+  for (const h of holidays) {
+    await prisma.publicHoliday.upsert({
+      where: { date_countryCode: { date: new Date(h.date), countryCode: "CV" } },
+      update: {},
+      create: { date: new Date(h.date), name: h.name, countryCode: "CV" },
+    });
+  }
+
+  console.warn(
+    `Seeded ${services.length} services, ${rooms.length} rooms, 7 staff, 5 patients, ${appointmentsData.length} appointments, ${holidays.length} public holidays.`
+  );
+}
+
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
