@@ -1,17 +1,34 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import FullCalendar from "@fullcalendar/react";
-import dayGridPlugin from "@fullcalendar/daygrid";
-import timeGridPlugin from "@fullcalendar/timegrid";
-import interactionPlugin from "@fullcalendar/interaction";
-import ptLocale from "@fullcalendar/core/locales/pt";
 import { format } from "date-fns";
 import { pt } from "date-fns/locale";
 import Link from "next/link";
 import { Plus, CalendarDays, List } from "lucide-react";
 import { io } from "socket.io-client";
+
+const CalendarView = dynamic(() => import("./_CalendarView"), {
+  ssr: false,
+  loading: () => (
+    <div className="p-5 animate-pulse">
+      <div className="flex items-center justify-between mb-4">
+        <div className="h-4 w-48 bg-dim-100 rounded" />
+        <div className="flex gap-2">
+          <div className="h-8 w-24 bg-dim-100 rounded" />
+          <div className="h-8 w-24 bg-dim-100 rounded" />
+          <div className="h-8 w-24 bg-dim-100 rounded" />
+        </div>
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {Array.from({ length: 35 }).map((_, i) => (
+          <div key={i} className="h-24 bg-dim-50 rounded border border-dim-100" />
+        ))}
+      </div>
+    </div>
+  ),
+});
 
 type Appointment = {
   id: string;
@@ -62,7 +79,6 @@ const CARD = "bg-white rounded-[16px] border border-dim-200 shadow-[0_1px_4px_rg
 export default function AppointmentsPage() {
   const [view, setView] = useState<"calendar" | "list">("calendar");
   const queryClient = useQueryClient();
-  const calendarRef = useRef<FullCalendar>(null);
 
   const { data: appointments, isLoading } = useQuery<Appointment[]>({
     queryKey: ["appointments", "calendar"],
@@ -174,22 +190,7 @@ export default function AppointmentsPage() {
       {/* Calendar view */}
       {view === "calendar" && (
         <div className={CARD}>
-          <div className="p-5 [&_.fc]:font-sans [&_.fc]:text-[13px] [&_.fc-button]:!bg-brand-600 [&_.fc-button]:!border-brand-600 [&_.fc-button]:!text-white [&_.fc-button:hover]:!bg-brand-700 [&_.fc-button-active]:!bg-brand-700 [&_.fc-today-button]:!bg-dim-100 [&_.fc-today-button]:!border-dim-200 [&_.fc-today-button]:!text-dim-700 [&_.fc-today-button:hover]:!bg-dim-200 [&_.fc-daygrid-day.fc-day-today]:!bg-brand-50 [&_.fc-timegrid-col.fc-day-today]:!bg-brand-50/40 [&_.fc-col-header-cell-cushion]:!text-dim-700 [&_.fc-col-header-cell-cushion]:!font-semibold [&_.fc-daygrid-day-number]:!text-dim-600 [&_.fc-event]:!rounded-lg [&_.fc-event]:!text-xs [&_.fc-toolbar-title]:!text-dim-900 [&_.fc-toolbar-title]:!font-bold [&_.fc-toolbar-title]:!text-[17px] [&_.fc-toolbar-title]:!font-display">
-            <FullCalendar
-              ref={calendarRef}
-              plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-              initialView="timeGridWeek"
-              headerToolbar={{ left: "prev,next today", center: "title", right: "dayGridMonth,timeGridWeek,timeGridDay" }}
-              locale={ptLocale}
-              events={events}
-              slotMinTime="07:00:00"
-              slotMaxTime="20:00:00"
-              slotDuration="00:30:00"
-              allDaySlot={false}
-              height="auto"
-              eventClick={(info) => { window.location.href = `/appointments/${info.event.id}`; }}
-            />
-          </div>
+          <CalendarView events={events} />
         </div>
       )}
 
