@@ -35,17 +35,19 @@ function Field({ label, required, error, children }: {
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-slate-700 mb-1.5">
+      <label className="block text-[12px] font-semibold text-dim-700 mb-1.5">
         {label}{required && <span className="text-red-500 ml-0.5">*</span>}
       </label>
       {children}
-      {error && <p className="text-xs text-red-600 mt-1.5">{error}</p>}
+      {error && <p className="text-[11px] text-red-600 mt-1.5">{error}</p>}
     </div>
   );
 }
 
 const inputCls =
-  "w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent shadow-sm transition-shadow hover:border-slate-300";
+  "w-full border border-dim-200 rounded-[10px] px-3.5 py-2.5 text-[13px] text-dim-900 placeholder:text-dim-400 bg-white focus:outline-none focus:border-brand-500 focus:shadow-[0_0_0_3px_rgba(19,163,163,.12)] transition-all shadow-[0_1px_2px_rgba(0,0,0,.05)] hover:border-dim-300 font-sans";
+
+const CARD = "bg-white rounded-[16px] border border-dim-200 shadow-[0_1px_4px_rgba(0,0,0,.08),0_0_0_1px_rgba(0,0,0,.03)] overflow-hidden";
 
 export default function NewAppointmentPage() {
   const router = useRouter();
@@ -76,33 +78,33 @@ export default function NewAppointmentPage() {
   const availableSlots = slots?.filter((s) => s.available) ?? [];
 
   return (
-    <div className="max-w-xl space-y-6">
+    <div className="max-w-xl flex flex-col gap-5">
       <Link
         href="/appointments"
-        className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors"
+        className="inline-flex items-center gap-1.5 text-[12px] text-dim-500 hover:text-dim-800 transition-colors font-medium"
       >
-        <ArrowLeft className="w-4 h-4" /> Marcações
+        <ArrowLeft className="w-3.5 h-3.5" /> Marcações
       </Link>
 
-      <div className="flex items-center gap-4">
-        <div className="w-11 h-11 bg-brand-50 rounded-2xl flex items-center justify-center">
-          <CalendarPlus className="w-5 h-5 text-brand-600" />
+      <div className="flex items-center gap-3.5">
+        <div className="w-10 h-10 bg-brand-100 rounded-[12px] flex items-center justify-center shrink-0">
+          <CalendarPlus className="w-5 h-5 text-brand-700" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Nova Marcação</h1>
-          <p className="text-sm text-slate-500">Agende uma nova consulta</p>
+          <h1 className="font-display text-[22px] font-bold text-dim-900">Nova Marcação</h1>
+          <p className="text-[13px] text-dim-500">Agende uma nova consulta</p>
         </div>
       </div>
 
       <form
         onSubmit={handleSubmit((data) => mutation.mutate(data))}
-        className="bg-white rounded-2xl border border-slate-200 shadow-sm"
+        className={CARD}
       >
-        <div className="px-6 py-5 border-b border-slate-200">
-          <h2 className="text-sm font-semibold text-slate-700">Dados da Consulta</h2>
+        <div className="px-6 py-4 border-b border-dim-100">
+          <h2 className="font-display text-[14px] font-semibold text-dim-900">Dados da Consulta</h2>
         </div>
 
-        <div className="px-6 py-5 space-y-4">
+        <div className="px-6 py-5 flex flex-col gap-4">
           <Field label="ID do Paciente" required error={errors.patientId?.message}>
             <input
               {...register("patientId")}
@@ -141,7 +143,7 @@ export default function NewAppointmentPage() {
 
           {availableSlots.length > 0 && (
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
+              <label className="block text-[12px] font-semibold text-dim-700 mb-2">
                 Horário Disponível <span className="text-red-500">*</span>
               </label>
               <div className="grid grid-cols-4 gap-2">
@@ -155,10 +157,10 @@ export default function NewAppointmentPage() {
                         setSelectedSlot(slot.start);
                         setValue("scheduledAt", slot.start, { shouldValidate: true });
                       }}
-                      className={`flex items-center justify-center gap-1.5 border rounded-xl py-2 text-xs font-semibold transition-all cursor-pointer ${
+                      className={`flex items-center justify-center gap-1.5 border rounded-[10px] py-2 text-[12px] font-semibold transition-all cursor-pointer ${
                         isSelected
-                          ? "bg-brand-600 border-brand-600 text-white shadow-sm"
-                          : "border-slate-200 text-slate-700 hover:bg-brand-50 hover:border-brand-300 hover:text-brand-700"
+                          ? "bg-brand-700 border-brand-700 text-white shadow-[0_1px_4px_rgba(15,145,145,.3)]"
+                          : "border-dim-200 text-dim-700 hover:bg-brand-50 hover:border-brand-300 hover:text-brand-700"
                       }`}
                     >
                       <Clock className="w-3 h-3" />
@@ -180,24 +182,24 @@ export default function NewAppointmentPage() {
           </Field>
         </div>
 
-        <div className="px-6 py-5 border-t border-slate-200 bg-slate-50/50 rounded-b-2xl space-y-4">
+        <div className="px-6 py-4 border-t border-dim-100 bg-dim-50/60 rounded-b-[16px] flex flex-col gap-3">
           {mutation.error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-xl">
-              <p className="text-sm text-red-700">{(mutation.error as Error).message}</p>
+            <div className="p-3 bg-red-50 border border-red-200 rounded-[10px]">
+              <p className="text-[12px] text-red-700">{(mutation.error as Error).message}</p>
             </div>
           )}
           <div className="flex items-center gap-3">
             <button
               type="submit"
               disabled={mutation.isPending}
-              className="bg-brand-600 hover:bg-brand-700 text-white font-semibold px-5 py-2.5 rounded-xl text-sm disabled:opacity-60 transition-all shadow-sm hover:shadow cursor-pointer"
+              className="bg-brand-700 hover:bg-brand-800 text-white font-semibold px-5 py-2.5 rounded-[10px] text-[13px] disabled:opacity-60 transition-colors shadow-[0_1px_2px_rgba(0,0,0,.08)] cursor-pointer"
             >
               {mutation.isPending ? "A guardar…" : "Confirmar Marcação"}
             </button>
             <button
               type="button"
               onClick={() => router.back()}
-              className="border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-medium px-5 py-2.5 rounded-xl text-sm transition-colors cursor-pointer"
+              className="border border-dim-200 bg-white hover:bg-dim-50 text-dim-700 font-medium px-5 py-2.5 rounded-[10px] text-[13px] transition-colors cursor-pointer"
             >
               Cancelar
             </button>
