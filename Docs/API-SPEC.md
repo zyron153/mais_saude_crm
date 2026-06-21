@@ -36,7 +36,9 @@ Response 204: No Content
 
 ### GET `/patients`
 **Roles:** receptionist, admin
-**Query params:** `search`, `tag`, `page` (default 1), `limit` (default 20)
+**Query params:** `q` (name/phone/NIF search), `planFilter` (`all` | `plan` | `none`, default `all`), `page` (default 1), `limit` (default 20)
+
+> `planFilter` is applied server-side in the Prisma `WHERE` clause so pagination totals are accurate. `plan` = patients with an active health plan; `none` = self-pay patients.
 
 ```
 Response 200:
@@ -116,7 +118,9 @@ Response 201: { ...note object }
 
 ### GET `/appointments`
 **Roles:** receptionist, doctor (own), admin
-**Query params:** `staff_id`, `date_from`, `date_to`, `status`, `service_category`, `page`, `limit`
+**Query params:** `staffId`, `from`, `to` (YYYY-MM-DD), `status`, `patientId`, `page`, `limit`
+
+> `from` and `to` are validated by `AppointmentCalendarQuerySchema` (Zod `.refine()`). Invalid calendar dates such as `2026-06-31` return `400 Bad Request` instead of propagating to the database.
 
 ```
 Response 200:
@@ -380,10 +384,17 @@ Body:
 {
   "amount": 5000,
   "method": "cash | bank_transfer | health_plan | vinti4",
-  "reference": "string (optional)"
+  "reference": "string (optional)",
+  "paidAt": "ISO8601 (optional, defaults to now)"
 }
-Response 201: Payment recorded; invoice status updated; receipt sent via WhatsApp
+Response 201:
+{
+  "id": "uuid",
+  "status": "partially_paid | paid",
+  "amountPaid": 5000
+}
 ```
+> Returns only the updated status fields. The frontend re-fetches the full invoice detail (`GET /invoices/:id`) via React Query cache invalidation. Returning the full items+payments payload on every payment would be wasted work.
 
 ### GET `/invoices/:id/pdf`
 **Roles:** receptionist, admin, patient (own)
@@ -604,7 +615,10 @@ Response 200:
     "address": "...",
     "nif": "...",
     "healthPlanId": "uuid",
-    "healthPlan": { "name": "Plano Familiar Mais+" },
+    "healthPlan": {
+      "planNumber": "PL-2024-001",
+      "product": { "name": "Plano Familiar Mais+" }
+    },
     ...
   },
   "timeline": [
@@ -686,4 +700,4 @@ The platform emits webhook events to registered endpoints (configurable per clin
 
 ---
 
-*Mais Saúde 360 · API Specification v1.1 · June 2026*
+*Mais Saúde 360 · API Specification v1.2 · June 2026*

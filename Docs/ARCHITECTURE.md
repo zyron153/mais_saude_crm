@@ -1,6 +1,6 @@
 # Mais Saúde 360 — Technical Architecture
 
-> **Version:** 1.0 · **Date:** June 2026
+> **Version:** 1.2 · **Date:** June 2026
 > Companion document to PRD v1.0
 
 ---
@@ -309,8 +309,87 @@ Screen-oriented aggregate endpoints live at `/v1/bff/*`. They replace multi-roun
 
 | Endpoint | Replaces | Improvement |
 |---|---|---|
-| `GET /v1/bff/patient-screen/:id` | `GET /patients/:id` + `GET /patients/:id/timeline` | 2 HTTP calls → 1; includes `healthPlan.name`; timeline capped at 20 per collection |
+| `GET /v1/bff/patient-screen/:id` | `GET /patients/:id` + `GET /patients/:id/timeline` | 2 HTTP calls → 1; includes `healthPlan.product.name`; timeline capped at 20 per collection |
 | `GET /v1/bff/billing-summary` | None (KPI stats were missing) | Issued count, collected amount, overdue count for billing dashboard |
+
+---
+
+### 9.4 React Query Tuning (Phase 4)
+
+Global defaults in `apps/web/app/providers.tsx`:
+
+```typescript
+defaultOptions: {
+  queries: {
+    staleTime: 30_000,           // 30s — serve from cache before background re-fetch
+    gcTime: 10 * 60 * 1000,      // 10min in-memory — survives React 19 StrictMode remount cycles
+    retry: 1,
+    refetchOnWindowFocus: false, // prevents DevTools open/close from firing duplicate fetches
+  },
+},
+```
+
+`refetchOnWindowFocus: false` was the primary fix for DUPs shown in the PERF panel. The React Query default (`true`) causes every active query to re-fetch whenever the browser window regains focus — opening DevTools triggers a blur+focus cycle, which looked like duplicate API calls.
+
+Per-page `staleTime` overrides: appointments calendar `60_000` ms; billing detail `60_000` ms.
+
+---
+
+### 9.5 Navigation Optimization (Phase 5)
+
+**Sidebar prefetch** (`apps/web/app/(app)/sidebar.tsx`): `prefetch={true}` on all `<Link>` elements. In Next.js 15 App Router the default partial prefetch downloads only the loading skeleton; `prefetch={true}` also fetches the full page JS bundle. Since all sidebar links are always in the viewport, all bundles are eagerly downloaded after the layout mounts — navigation is instant in production.
+
+**Route-specific loading skeletons** (replaces the generic KPI+table skeleton shown on all routes):
+
+| File | Matches |
+|---|---|
+| `apps/web/app/(app)/appointments/loading.tsx` | Calendar toolbar + stats pills + 7-column FullCalendar-shaped grid |
+| `apps/web/app/(app)/patients/loading.tsx` | Search bar + filter chips + 9-row table with avatar/name/phone/plan columns |
+
+---
+
+### 9.6 Database Query Optimization (Phase 6)
+
+**Composite indexes** added to `packages/database/prisma/schema.prisma`:
+
+| Index | Table | Query pattern |
+|---|---|---|
+| `(patientId, deletedAt)` | appointments | BFF patient-screen: `WHERE patientId = ? AND deletedAt IS NULL` |
+| `(scheduledAt, deletedAt)` | appointments | Calendar: `WHERE scheduledAt BETWEEN ? AND ? AND deletedAt IS NULL` |
+| `(status, createdAt)` | invoices | BFF billing-summary: `WHERE status = ? AND createdAt >= ?` |
+| `(patientId, status)` | invoices | Patient invoice timeline |
+
+> Activate with `pnpm --filter @cms/database db:push` (dev) or `prisma migrate dev`.
+
+**Lean repository methods** to avoid over-fetching:
+
+| Method | Select | Replaces |
+|---|---|---|
+| `BillingRepository.findByIdLite(id)` | `id, status, total, invoiceNumber` | Full `findById` (items + payments + patient) in `recordPayment` and `getReceiptUrl` |
+| `BillingRepository.updateStatus(id, data)` | `id, status, amountPaid` | Full `update` (returns items + payments) after recording a payment |
+| `HealthPlansRepository.planSelect` | All plan fields except `coverageRules` JSON blob | `include: { product: true }` |
+| `CompaniesRepository.exists(id)` | `id` only | Full `findById` (joins healthPlans + products) in `deactivate` guard check |
+
+**Bug fixed:** `bff.service.ts` was selecting `healthPlan: { select: { name: true } }` but `HealthPlan` has no `name` column — name lives on `product.name`. Fixed to `healthPlan: { select: { planNumber, product: { select: { name } } } }`. Frontend `PatientScreenResponse` type and template updated accordingly.
+
+---
+
+### 9.7 Server-Side Filtering (Phase 7)
+
+**Patient plan filter** moved from client-side `Array.filter()` to server-side Prisma `WHERE`:
+
+```typescript
+// packages/types/src/patient.ts — PatientSearchSchema
+planFilter: z.enum(["all", "plan", "none"]).default("all")
+
+// apps/api/src/modules/patients/patients.service.ts — findAll()
+planFilter === "plan" ? { healthPlanId: { not: null } }
+planFilter === "none" ? { healthPlanId: null }
+```
+
+Root cause of the prior bug: filtering after `data.data` (first 20 rows) produced wrong totals and broke pagination — a "Com Plano" search could never return more than whatever happened to be on page 1.
+
+Frontend (`apps/web/app/(app)/patients/page.tsx`): `planFilter` is now a URL param on every fetch and is part of the React Query key `["patients", search, planFilter, page]`; client-side `.filter()` removed.
 
 ---
 
@@ -326,4 +405,4 @@ Screen-oriented aggregate endpoints live at `/v1/bff/*`. They replace multi-roun
 
 ---
 
-*Mais Saúde 360 · Architecture Document v1.1 · June 2026*
+*Mais Saúde 360 · Architecture Document v1.2 · June 2026*

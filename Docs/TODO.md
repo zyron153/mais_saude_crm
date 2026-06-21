@@ -108,7 +108,7 @@
 
 **Frontend (Next.js)**
 - [x] Patient list page with search + pagination
-- [x] Patient profile page with timeline (uses BFF `/bff/patient-screen/:id`; shows health plan name; staleTime 60s)
+- [x] Patient profile page with timeline (uses BFF `/bff/patient-screen/:id`; shows `healthPlan.product.name`; staleTime 60s)
 - [x] New patient form with Zod validation
 - [ ] Edit patient form (`/patients/[id]/edit`)
 - [ ] Document upload panel on patient profile
