@@ -7,7 +7,7 @@
 | 1 | Full-Stack Performance Instrumentation | ✅ Done |
 | 2 | API Waterfall Detection & Audit | ✅ Done |
 | 3 | BFF (Backend for Frontend) Endpoints | ✅ Done |
-| 4 | Frontend Data Loading Tuning | ⬜ Pending |
+| 4 | Frontend Data Loading Tuning | ✅ Done |
 | 5 | Navigation Optimization | ⬜ Pending |
 | 6 | Database Query Optimization | ⬜ Pending |
 | 7 | Final Implementation Pass | ⬜ Pending |
@@ -132,14 +132,32 @@ Created screen-oriented endpoints that collapse multiple API calls into one.
 
 ---
 
-## ⬜ Phase 4 — Frontend Data Loading Tuning
+## ✅ Phase 4 — Frontend Data Loading Tuning
 
-Tune React Query across all live-data pages. Targets: F1, F3, F4, F10, F11.
+Tuned React Query across all live-data pages. Targets: F1, F2, F3, F4, F10, F11.
 
-- Set per-page `staleTime` appropriate to data freshness
-- Encode date range in appointments query key (F3)
-- Scope socket invalidation to exact key `["appointments", "calendar", { from, to }]` (F2)
-- Narrow `invalidateQueries` in billing payment mutation to `["invoices", invoiceId]` (F10)
+### Global (`apps/web/app/providers.tsx`) — MODIFIED
+
+Added to QueryClient defaults:
+- `gcTime: 10 * 60 * 1000` — keeps cache alive 10 min after last observer detaches; survives React 19 StrictMode remount cycles
+- `refetchOnWindowFocus: false` — eliminated DUPs caused by DevTools open/close triggering window blur+focus re-fetches
+
+### Appointments page (`apps/web/app/(app)/appointments/page.tsx`) — MODIFIED
+
+- **F1**: Added `staleTime: 60_000` to the calendar query
+- **F3**: Moved `from`/`to` date computation to component scope; both now included in queryKey: `["appointments", "calendar", from, to]`
+- **F2**: Socket `invalidateQueries` now targets the exact key `["appointments", "calendar", from, to]` instead of the over-broad `["appointments"]` prefix
+- **Bug fix**: `to` date now uses `new Date(year, month+1, 0).getDate()` — eliminates hardcoded `-31` that produced `Invalid Date` on months with < 31 days (e.g. June → 500 error)
+- Socket `reconnectionAttempts: 3` — stops console spam when API server is not running
+
+### Patients page (`apps/web/app/(app)/patients/page.tsx`) — MODIFIED
+
+- **F4**: Added explicit `staleTime: 30_000` (previously relying silently on global default)
+
+### Billing detail page (`apps/web/app/(app)/billing/[id]/page.tsx`) — MODIFIED
+
+- **F11**: Added `staleTime: 60_000` to the invoice detail query
+- **F10**: `payMutation.onSuccess` now also invalidates `["billing-summary"]` so KPI cards on the billing list page reflect the payment immediately; list invalidation via `["invoices"]` prefix is intentionally kept broad (all pages/filters should reflect the payment)
 
 ---
 
