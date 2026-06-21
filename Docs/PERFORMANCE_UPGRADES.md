@@ -8,7 +8,7 @@
 | 2 | API Waterfall Detection & Audit | ✅ Done |
 | 3 | BFF (Backend for Frontend) Endpoints | ✅ Done |
 | 4 | Frontend Data Loading Tuning | ✅ Done |
-| 5 | Navigation Optimization | ⬜ Pending |
+| 5 | Navigation Optimization | ✅ Done |
 | 6 | Database Query Optimization | ⬜ Pending |
 | 7 | Final Implementation Pass | ⬜ Pending |
 
@@ -161,13 +161,25 @@ Added to QueryClient defaults:
 
 ---
 
-## ⬜ Phase 5 — Navigation Optimization
+## ✅ Phase 5 — Navigation Optimization
 
-Reduce blank-screen time on first visit to each route.
+Reduced blank-screen time when navigating between routes.
 
-- Add `<Link prefetch>` on sidebar links (they currently use default lazy prefetch)
-- Investigate whether `router.prefetch()` should be called on sidebar hover
-- Verify `loading.tsx` skeletons cover all pages with live data
+### Sidebar prefetch (`apps/web/app/(app)/sidebar.tsx`) — MODIFIED
+
+Added `prefetch={true}` to all sidebar `<Link>` elements. In Next.js 15 App Router, the default partial prefetch downloads only the loading skeleton; `prefetch={true}` also downloads the full page JS bundle while the user is viewing the sidebar. Since all sidebar links are always in the viewport, all bundles are downloaded eagerly after the layout mounts — navigation becomes instant in production.
+
+> Hover-based `router.prefetch()` was investigated and ruled out: links are permanently in viewport, so viewport-based prefetch already fires immediately. Hover adds no benefit.
+
+### Route-specific loading skeletons
+
+The single `app/(app)/loading.tsx` (generic KPI-cards + table) was shown for ALL routes, including ones with a completely different layout. Added two route-specific skeletons that match the actual page structure:
+
+**`apps/web/app/(app)/appointments/loading.tsx`** — NEW
+Calendar-matching skeleton: header with view-toggle + CTA, 4 stats pills row, status legend pills, FullCalendar-shaped grid (toolbar + 7-col day headers + 5-week cell grid with scattered event placeholders).
+
+**`apps/web/app/(app)/patients/loading.tsx`** — NEW
+Patients-matching skeleton: header + button, search bar + filter, table with avatar + name + phone + plan columns, pagination row. No KPI cards (generic had 4 that don't exist on this page).
 
 ---
 
