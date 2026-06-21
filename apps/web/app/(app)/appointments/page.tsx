@@ -81,8 +81,11 @@ export default function AppointmentsPage() {
   const queryClient = useQueryClient();
 
   const now = new Date();
-  const from = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-  const to   = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-31`;
+  const year  = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
+  const from = `${year}-${month}-01`;
+  const to   = `${year}-${month}-${String(lastDay).padStart(2, "0")}`;
 
   const { data: appointments, isLoading } = useQuery<Appointment[]>({
     queryKey: ["appointments", "calendar", from, to],
@@ -92,7 +95,10 @@ export default function AppointmentsPage() {
 
   useEffect(() => {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
-    const socket = io(`${apiUrl}/calendar`, { path: "/socket.io" });
+    const socket = io(`${apiUrl}/calendar`, {
+      path: "/socket.io",
+      reconnectionAttempts: 3,
+    });
     socket.on("appointment:created", () =>
       queryClient.invalidateQueries({ queryKey: ["appointments", "calendar", from, to] })
     );

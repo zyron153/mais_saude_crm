@@ -74,9 +74,14 @@ export interface Appointment {
   updatedAt: string;
 }
 
+const isoDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine((v) => !isNaN(Date.parse(v)), { message: "Invalid calendar date" });
+
 export const AppointmentCalendarQuerySchema = z.object({
-  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  from: isoDate,
+  to: isoDate,
   staffId: z.string().uuid().optional(),
   patientId: z.string().uuid().optional(),
 });
