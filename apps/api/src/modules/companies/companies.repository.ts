@@ -20,6 +20,10 @@ export class CompaniesRepository {
     });
   }
 
+  exists(id: string) {
+    return this.prisma.company.findUnique({ where: { id }, select: { id: true } });
+  }
+
   findByTaxId(taxId: string) {
     return this.prisma.company.findUnique({ where: { taxId } });
   }

@@ -207,6 +207,8 @@ model Appointment {
   @@index([scheduledAt])
   @@index([status])
   @@index([deletedAt])
+  @@index([patientId, deletedAt])   // BFF patient-screen: appointments WHERE patientId AND deletedAt IS NULL
+  @@index([scheduledAt, deletedAt]) // calendar query: WHERE scheduledAt BETWEEN x AND y AND deletedAt IS NULL
   @@map("appointments")
 }
 
@@ -385,6 +387,8 @@ model Invoice {
   @@index([patientId])
   @@index([status])
   @@index([issuedAt])
+  @@index([status, createdAt]) // BFF billing-summary: WHERE status = 'issued' AND createdAt >= startOfMonth
+  @@index([patientId, status]) // patient invoice timeline: WHERE patientId ORDER BY createdAt
   @@map("invoices")
 }
 

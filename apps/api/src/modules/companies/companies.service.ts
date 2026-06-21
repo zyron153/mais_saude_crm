@@ -28,7 +28,8 @@ export class CompaniesService {
   }
 
   async deactivate(id: string) {
-    await this.findById(id);
+    const found = await this.repo.exists(id);
+    if (!found) throw new NotFoundException(`Company ${id} not found`);
     return this.repo.update(id, { active: false });
   }
 }

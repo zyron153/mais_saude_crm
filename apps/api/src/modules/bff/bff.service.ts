@@ -10,7 +10,7 @@ export class BffService {
     const [patient, appointments, comms, invoices] = await Promise.all([
       this.prisma.patient.findFirst({
         where: { id, deletedAt: null },
-        include: { healthPlan: { select: { name: true } } },
+        include: { healthPlan: { select: { planNumber: true, product: { select: { name: true } } } } },
       }),
       this.prisma.appointment.findMany({
         where: { patientId: id, deletedAt: null },

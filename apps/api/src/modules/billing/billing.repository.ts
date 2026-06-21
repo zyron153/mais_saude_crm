@@ -39,6 +39,13 @@ export class BillingRepository {
     });
   }
 
+  findByIdLite(id: string) {
+    return this.prisma.invoice.findUnique({
+      where: { id },
+      select: { id: true, status: true, total: true, invoiceNumber: true },
+    });
+  }
+
   findMany(args: Prisma.InvoiceFindManyArgs) {
     return this.prisma.invoice.findMany(args);
   }

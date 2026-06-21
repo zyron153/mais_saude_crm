@@ -19,7 +19,7 @@ import {
 import type { Patient, TimelineEvent } from "@cms/types";
 
 interface PatientScreenResponse {
-  patient: Patient & { healthPlan?: { name: string } | null };
+  patient: Patient & { healthPlan?: { planNumber: string; product: { name: string } } | null };
   timeline: TimelineEvent[];
 }
 
@@ -93,7 +93,7 @@ export default function PatientProfilePage({ params }: { params: { id: string } 
               <p className="text-[12px] text-dim-500 mt-0.5">{age} anos · {genderLabels[patient.gender] ?? patient.gender}</p>
               {patient.healthPlan ? (
                 <span className="inline-block mt-2 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700">
-                  {patient.healthPlan.name}
+                  {patient.healthPlan.product.name}
                 </span>
               ) : patient.healthPlanId ? (
                 <span className="inline-block mt-2 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700">

@@ -9,7 +9,7 @@
 | 3 | BFF (Backend for Frontend) Endpoints | ✅ Done |
 | 4 | Frontend Data Loading Tuning | ✅ Done |
 | 5 | Navigation Optimization | ✅ Done |
-| 6 | Database Query Optimization | ⬜ Pending |
+| 6 | Database Query Optimization | ✅ Done |
 | 7 | Final Implementation Pass | ⬜ Pending |
 
 ---
@@ -183,16 +183,49 @@ Patients-matching skeleton: header + button, search bar + filter, table with ava
 
 ---
 
-## ⬜ Phase 6 — Database Query Optimization
+## ✅ Phase 6 — Database Query Optimization
 
-Add missing indexes, reduce over-fetching on high-traffic queries.
+Reduced over-fetching on high-traffic queries and added composite indexes for the most common filter patterns.
 
-- Fix B4: add `select` to `patients.findAll` to exclude encrypted NIF, emergency contacts
-- Fix B6: rewrite `billing.recordPayment` to fetch only `{ total, status }` in query 1
-- Fix B7: create a `findByIdLite` variant that excludes `items + payments` for receipt/status checks
-- Fix B9: add `select` to `healthPlans.findAllPlans` to exclude `coverageRules` JSON blob
-- Fix B10: replace full include in `companies.deactivate` with `findFirst({ where: { id } })` existence check
-- Audit and add composite indexes for common filter patterns (patient timeline, invoice by status+date)
+### B4 — `patients.findAll` over-fetching (`apps/api/src/modules/patients/patients.service.ts`)
+
+Added `select` to the `findMany` call: returns only the 10 fields the list page displays (`id`, `fullName`, `dateOfBirth`, `gender`, `phone`, `email`, `consentGiven`, `healthPlanId`, `createdAt`, `updatedAt`). Excludes `nif` (AES-256-GCM encrypted), `address`, `emergencyContactName`, `emergencyContactPhone`, `consentGivenAt`, `deletedAt` — none of which are shown in the list.
+
+### B6+B7 — `billing.recordPayment` + `getReceiptUrl` over-fetching
+
+**`apps/api/src/modules/billing/billing.repository.ts`** — Added `findByIdLite`:
+```typescript
+findByIdLite(id) → select: { id, status, total, invoiceNumber }
+```
+Replaces the full `findById` (which joins `items + payments + patient`) in two operations that only need a fraction of that data:
+- B6: `recordPayment` — needed only `status` (guard check) and `total` (payment math)
+- B7: `getReceiptUrl` — needed only `invoiceNumber` for the PDF URL
+
+**`apps/api/src/modules/billing/billing.service.ts`** — Both methods now call `findByIdLite` and throw `NotFoundException` inline (no longer delegating to `findById`).
+
+### B9 — `healthPlans.findAllPlans` loading `coverageRules` JSON blob (`apps/api/src/modules/health-plans/health-plans.repository.ts`)
+
+Replaced `include: { product: true, company: true }` with a shared `planSelect` constant using `select` — excludes the `coverageRules` JSON field from `HealthPlanProduct`. Applied to both `findAllPlans` and `findPlanById`.
+
+**Bug fixed here:** BFF service (`bff.service.ts`) was selecting `healthPlan: { select: { name: true } }` but `HealthPlan` has no `name` field — the plan name lives on `product.name`. Fixed to `healthPlan: { select: { planNumber, product: { select: { name } } } }`. Frontend `PatientScreenResponse` type and rendering updated accordingly (`healthPlan.product.name`).
+
+### B10 — `companies.deactivate` existence check (`apps/api/src/modules/companies/`)
+
+**Repository** — Added `exists(id): { id }` method that only selects `{ id: true }`.
+**Service** — `deactivate` now calls `repo.exists(id)` instead of `findById` (which joins the full health plans + products tree just to confirm the company exists).
+
+### Composite indexes (`packages/database/prisma/schema.prisma`)
+
+Added 4 composite indexes targeting the most frequent filter patterns:
+
+| Index | Table | Purpose |
+|-------|-------|---------|
+| `(patientId, deletedAt)` | appointments | BFF patient-screen: `WHERE patientId = ? AND deletedAt IS NULL` |
+| `(scheduledAt, deletedAt)` | appointments | Calendar: `WHERE scheduledAt BETWEEN ? AND ? AND deletedAt IS NULL` |
+| `(status, createdAt)` | invoices | BFF billing-summary: `WHERE status = 'issued' AND createdAt >= ?` |
+| `(patientId, status)` | invoices | Patient invoice timeline: `WHERE patientId = ?` |
+
+> **Migration required:** run `pnpm --filter @cms/database db:push` (dev) or `prisma migrate dev` to apply the new indexes to the database.
 
 ---
 

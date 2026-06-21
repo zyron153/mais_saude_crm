@@ -33,7 +33,24 @@ export class PatientsService {
       : { deletedAt: null };
 
     const [data, total] = await Promise.all([
-      this.repo.findMany({ where, skip, take: limit, orderBy: { fullName: "asc" } }),
+      this.repo.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { fullName: "asc" },
+        select: {
+          id: true,
+          fullName: true,
+          dateOfBirth: true,
+          gender: true,
+          phone: true,
+          email: true,
+          consentGiven: true,
+          healthPlanId: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      }),
       this.repo.count({ where }),
     ]);
 

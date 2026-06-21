@@ -89,7 +89,8 @@ export class BillingService {
   }
 
   async recordPayment(invoiceId: string, dto: RecordPaymentDto) {
-    const invoice = await this.findById(invoiceId);
+    const invoice = await this.repo.findByIdLite(invoiceId);
+    if (!invoice) throw new NotFoundException(`Invoice ${invoiceId} not found`);
 
     if (["paid", "cancelled"].includes(invoice.status)) {
       throw new BadRequestException(
@@ -125,7 +126,8 @@ export class BillingService {
   }
 
   async getReceiptUrl(invoiceId: string): Promise<{ url: string }> {
-    const invoice = await this.findById(invoiceId);
+    const invoice = await this.repo.findByIdLite(invoiceId);
+    if (!invoice) throw new NotFoundException(`Invoice ${invoiceId} not found`);
     // Phase 1: PDF generation + R2 upload stubbed — returns placeholder
     // Phase 2: implement with @react-pdf/renderer + AWS SDK v3 S3Client
     return {

@@ -29,10 +29,24 @@ export class HealthPlansRepository {
 
   // ─── Plans ─────────────────────────────────────────────────────────────────
 
+  private readonly planSelect = {
+    id: true,
+    planNumber: true,
+    startDate: true,
+    endDate: true,
+    active: true,
+    usageCount: true,
+    createdAt: true,
+    holderPatientId: true,
+    companyId: true,
+    product: { select: { id: true, name: true, code: true, monthlyFee: true, active: true } },
+    company: { select: { id: true, name: true } },
+  } as const;
+
   findAllPlans(companyId?: string) {
     return this.prisma.healthPlan.findMany({
       where: companyId ? { companyId } : {},
-      include: { product: true, company: true },
+      select: this.planSelect,
       orderBy: { createdAt: "desc" },
     });
   }
@@ -40,7 +54,7 @@ export class HealthPlansRepository {
   findPlanById(id: string) {
     return this.prisma.healthPlan.findUnique({
       where: { id },
-      include: { product: true, company: true },
+      select: this.planSelect,
     });
   }
 
