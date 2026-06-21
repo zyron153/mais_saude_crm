@@ -371,9 +371,9 @@ Phase 4 │                                             │    Growth    │
 
 | Layer | Technology | Rationale |
 |---|---|---|
-| Frontend (Web) | React.js + Next.js | SSR for SEO; fast booking widget load; PWA capability for mobile |
+| Frontend (Web) | React.js + Next.js 15 (App Router + Turbopack) | SSR for SEO; fast booking widget load; PWA capability for mobile |
 | Mobile App | React Native | Single codebase for iOS + Android; offline-first for home visit tracking |
-| Backend API | Node.js (NestJS) or Laravel (PHP) | Laravel favored for healthcare SaaS patterns; NestJS for API-first |
+| Backend API | Node.js + NestJS 10 | Structured, modular; decorator-based DI; performance interceptor with per-request SQL metrics |
 | Database | PostgreSQL (primary) + Redis (cache) | Relational integrity for medical records; Redis for session/queue |
 | File Storage | AWS S3 or Cloudflare R2 | GDPR-compliant bucket for exam PDFs, patient documents, images |
 | WhatsApp API | Meta Cloud API (BSP: Twilio or 360dialog) | Official Business API; supports bots, templates, agent handoff |

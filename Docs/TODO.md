@@ -31,6 +31,34 @@
 
 ---
 
+## Performance Observability (cross-cutting)
+
+### Backend instrumentation
+- [x] `AsyncLocalStorage` request context (`apps/api/src/common/context/request-context.ts`)
+- [x] `PerformanceInterceptor` — sets `X-Request-Id`, `X-Request-Duration`, `X-Query-Count`, `X-Query-Time` headers; logs `[PERF]` / `[SLOW]` to NestJS logger
+- [x] Prisma query event logging — slow queries (>100ms) logged as `[SLOW QUERY]`
+- [x] `app.module.ts` — `PerformanceInterceptor` registered as first `APP_INTERCEPTOR`
+
+### Frontend dev tooling
+- [x] `usePerfStore` (Zustand) — tracks per-route: transition ms, API calls, duplicate detection, SQL stats, Web Vitals
+- [x] Fetch monkey-patch in `PerfPanel` — intercepts `window.fetch`, reads `X-Query-*` response headers
+- [x] `WebVitals` component — `useReportWebVitals` logs LCP, FCP, CLS, TTFB, INP to console
+- [x] `PerfPanel` floating overlay (bottom-right, `z-[9999]`, dev only)
+- [x] `@next/bundle-analyzer` — `ANALYZE=true pnpm --filter @cms/web build`
+- [x] Turbopack enabled — `"dev": "next dev --turbopack"` in `apps/web/package.json`
+- [x] FullCalendar lazy-loaded via `next/dynamic({ ssr: false })` in appointments page
+
+### BFF endpoints
+- [x] `GET /v1/bff/patient-screen/:id` — patient + health plan name + timeline in 1 request
+- [x] `GET /v1/bff/billing-summary` — issued count, collected amount, overdue count
+
+### Service-level fixes
+- [x] `appointments.service.ts` reschedule — N+1 Bull queue loop → `Promise.all`
+- [x] `patients.service.ts` create — sequential phone+NIF checks → `Promise.all`
+- [x] `patients.repository.ts` timeline — `take: 50` → `take: 20` per collection
+
+---
+
 ## Phase 1 — Foundation (Months 1–3)
 
 ### M1 — Smart Appointment Engine
@@ -80,7 +108,7 @@
 
 **Frontend (Next.js)**
 - [x] Patient list page with search + pagination
-- [x] Patient profile page with timeline
+- [x] Patient profile page with timeline (uses BFF `/bff/patient-screen/:id`; shows health plan name; staleTime 60s)
 - [x] New patient form with Zod validation
 - [ ] Edit patient form (`/patients/[id]/edit`)
 - [ ] Document upload panel on patient profile
@@ -106,7 +134,7 @@
 - [ ] Unit tests: invoice number sequence, payment status machine, amount calculation
 
 **Frontend (Next.js)**
-- [x] Invoice list page with status filter tabs
+- [x] Invoice list page with status filter tabs (KPI cards populated from `/bff/billing-summary`; staleTime 30s)
 - [x] Invoice detail page with payment recording form
 - [~] Receipt PDF download button (shows placeholder URL)
 - [ ] New invoice form (`/billing/new`) — patient picker + service line item builder

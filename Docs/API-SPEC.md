@@ -582,7 +582,65 @@ Response 201: Service created
 
 ---
 
-## 13. Common HTTP Status Codes
+## 13. BFF — Backend for Frontend
+
+Screen-aggregate endpoints that collapse multi-request UI patterns into a single parallel server-side fetch. All require the same authentication/roles as their constituent resource endpoints.
+
+### GET `/bff/patient-screen/:id`
+**Roles:** receptionist, doctor, nurse, admin
+
+Returns the full patient profile (including health plan name) and the merged timeline in one request. Replaces the previous pattern of `GET /patients/:id` + `GET /patients/:id/timeline`.
+
+```
+Response 200:
+{
+  "patient": {
+    "id": "uuid",
+    "fullName": "Maria da Graça",
+    "dateOfBirth": "1985-03-12",
+    "gender": "female",
+    "phone": "+2389001234",
+    "email": "...",
+    "address": "...",
+    "nif": "...",
+    "healthPlanId": "uuid",
+    "healthPlan": { "name": "Plano Familiar Mais+" },
+    ...
+  },
+  "timeline": [
+    {
+      "id": "uuid",
+      "type": "appointment | communication | invoice | note",
+      "title": "Consulta de Cardiologia",
+      "description": "Dr. Nuno Barros — completed",
+      "date": "2026-06-18T09:00:00Z",
+      "metadata": { "status": "completed" }
+    }
+  ]
+}
+```
+
+Timeline is sorted descending by date. Maximum 20 items per event type (appointments, communications, invoices).
+
+---
+
+### GET `/bff/billing-summary`
+**Roles:** receptionist, admin
+
+Returns aggregate KPI counts for the billing dashboard header cards.
+
+```
+Response 200:
+{
+  "issuedCount": 12,        // invoices with status "issued" this month
+  "collectedAmount": 245000, // sum of amountPaid on "paid" invoices this month (CVE)
+  "overdueCount": 3          // invoices with status "overdue" (all time)
+}
+```
+
+---
+
+## 14. Common HTTP Status Codes
 
 | Code | Meaning | When Used |
 |---|---|---|
@@ -600,7 +658,7 @@ Response 201: Service created
 
 ---
 
-## 14. Rate Limiting
+## 15. Rate Limiting
 
 | Endpoint Group | Limit |
 |---|---|
@@ -612,7 +670,7 @@ Response 201: Service created
 
 ---
 
-## 15. Webhook Events (Outbound)
+## 16. Webhook Events (Outbound)
 
 The platform emits webhook events to registered endpoints (configurable per clinic):
 
@@ -628,4 +686,4 @@ The platform emits webhook events to registered endpoints (configurable per clin
 
 ---
 
-*Mais Saúde 360 · API Specification v1.0 · June 2026*
+*Mais Saúde 360 · API Specification v1.1 · June 2026*

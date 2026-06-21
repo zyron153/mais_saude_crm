@@ -22,11 +22,11 @@ Mais Saúde 360 is a cloud-native, multi-tenant Healthcare ERP/CRM. The architec
 
 | Layer | Technology | Version | Rationale |
 |---|---|---|---|
-| Web Framework | Next.js (React) | 14+ | SSR for SEO; App Router; PWA support |
+| Web Framework | Next.js (React) | 15 | App Router; Turbopack dev mode (5–10× faster HMR); SSR |
 | UI Component Library | shadcn/ui + Tailwind CSS | Latest | Accessible, unstyled components; rapid iteration |
-| State Management | Zustand + React Query | Latest | Lightweight global state; server state caching |
+| State Management | Zustand + React Query | Latest | Perf store (Zustand); server state caching + dedup (React Query) |
 | Forms | React Hook Form + Zod | Latest | Type-safe form validation |
-| Calendar | FullCalendar | 6+ | Multi-view appointment calendar |
+| Calendar | FullCalendar | 6+ | Multi-view appointment calendar; lazy-loaded via `next/dynamic` |
 | Charts | Recharts | Latest | Analytics dashboard |
 | i18n | next-intl | Latest | Portuguese (pt-CV) primary; English admin option |
 | Mobile App | React Native (Expo) | Latest | iOS + Android from single codebase |
@@ -37,7 +37,7 @@ Mais Saúde 360 is a cloud-native, multi-tenant Healthcare ERP/CRM. The architec
 |---|---|---|---|
 | Runtime | Node.js | 20 LTS | Performance; same language as frontend |
 | Framework | NestJS | 10+ | Structured, modular; decorator-based DI |
-| ORM | Prisma | 5+ | Type-safe queries; migration support |
+| ORM | Prisma | 6 | Type-safe queries; migration support; query event logging |
 | Task Queue | BullMQ (Redis) | Latest | Reminder scheduling; async jobs |
 | WebSockets | Socket.io | Latest | Real-time calendar updates; agent inbox |
 | Validation | class-validator + class-transformer | Latest | DTO-level request validation |
@@ -260,7 +260,7 @@ CORS_ORIGIN=https://maissaudecv.com,https://app.maissaudecv.com
 
 | Metric | Target | Strategy |
 |---|---|---|
-| API response time (p95) | < 200ms | Redis caching; DB indexes; connection pooling (PgBouncer) |
+| API response time (p95) | < 200ms | BFF endpoints; Redis caching; DB indexes; connection pooling (PgBouncer) |
 | Booking flow E2E | < 90 seconds | Optimistic UI; slot pre-check before form |
 | Calendar load | < 1 second | Paginated API; date-range scoped queries |
 | Concurrent users | 50 at launch → 500 | Horizontal pod scaling in K8s |
@@ -269,7 +269,52 @@ CORS_ORIGIN=https://maissaudecv.com,https://app.maissaudecv.com
 
 ---
 
-## 9. Disaster Recovery
+## 9. Performance Observability
+
+Instrumentation is active in the current codebase (dev and production).
+
+### 9.1 Backend — Per-Request Metrics
+
+Every API request is wrapped by `PerformanceInterceptor` (`apps/api/src/common/interceptors/performance.interceptor.ts`), which uses Node.js `AsyncLocalStorage` to scope state through the full async call stack including Prisma event callbacks.
+
+**Response headers set on every request:**
+
+| Header | Value |
+|---|---|
+| `X-Request-Id` | UUID per request |
+| `X-Request-Duration` | Total handler time in ms |
+| `X-Query-Count` | Number of SQL queries executed |
+| `X-Query-Time` | Sum of all Prisma query durations in ms |
+
+**Server logs:**
+- `[PERF] GET /v1/patients 200 38ms (2 queries, 12ms SQL)` — every request
+- `[SLOW] GET /v1/appointments 312ms` — requests exceeding 100ms
+- `[SLOW QUERY] 145ms — SELECT ...` — individual Prisma queries exceeding 100ms
+
+### 9.2 Frontend — Development Panel
+
+In `NODE_ENV=development`, a floating `⚡ PERF` panel appears bottom-right on every page. It tracks:
+
+- Route transition time (ms)
+- API calls made on the current route (URL, method, duration)
+- Duplicate call detection (same URL appearing > 1 time, labeled `DUP`)
+- SQL query count and total time (read from `X-Query-Count` / `X-Query-Time` response headers)
+- Web Vitals: LCP, FCP, CLS, TTFB, INP (via `useReportWebVitals`)
+
+Bundle analysis: `ANALYZE=true pnpm --filter @cms/web build` opens a treemap of client + server bundles.
+
+### 9.3 BFF Pattern (Backend for Frontend)
+
+Screen-oriented aggregate endpoints live at `/v1/bff/*`. They replace multi-round-trip UI patterns with a single request that runs all sub-queries in parallel server-side.
+
+| Endpoint | Replaces | Improvement |
+|---|---|---|
+| `GET /v1/bff/patient-screen/:id` | `GET /patients/:id` + `GET /patients/:id/timeline` | 2 HTTP calls → 1; includes `healthPlan.name`; timeline capped at 20 per collection |
+| `GET /v1/bff/billing-summary` | None (KPI stats were missing) | Issued count, collected amount, overdue count for billing dashboard |
+
+---
+
+## 10. Disaster Recovery
 
 | Scenario | Recovery Procedure | RTO | RPO |
 |---|---|---|---|
@@ -281,4 +326,4 @@ CORS_ORIGIN=https://maissaudecv.com,https://app.maissaudecv.com
 
 ---
 
-*Mais Saúde 360 · Architecture Document v1.0 · June 2026*
+*Mais Saúde 360 · Architecture Document v1.1 · June 2026*
