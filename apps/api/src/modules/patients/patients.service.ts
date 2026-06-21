@@ -17,20 +17,27 @@ export class PatientsService {
   constructor(private readonly repo: PatientsRepository) {}
 
   async findAll(query: PatientSearchQuery) {
-    const { q, page, limit } = query;
+    const { q, planFilter, page, limit } = query;
     const skip = (page - 1) * limit;
 
-    const where = q
-      ? {
-          deletedAt: null,
-          OR: [
-            { fullName: { contains: q, mode: "insensitive" as const } },
-            { phone: { contains: q } },
-            { nif: { contains: q } },
-            { email: { contains: q, mode: "insensitive" as const } },
-          ],
-        }
-      : { deletedAt: null };
+    const where = {
+      deletedAt: null,
+      ...(q
+        ? {
+            OR: [
+              { fullName: { contains: q, mode: "insensitive" as const } },
+              { phone: { contains: q } },
+              { nif: { contains: q } },
+              { email: { contains: q, mode: "insensitive" as const } },
+            ],
+          }
+        : {}),
+      ...(planFilter === "plan"
+        ? { healthPlanId: { not: null } }
+        : planFilter === "none"
+        ? { healthPlanId: null }
+        : {}),
+    };
 
     const [data, total] = await Promise.all([
       this.repo.findMany({

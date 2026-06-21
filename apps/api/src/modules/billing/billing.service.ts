@@ -119,7 +119,7 @@ export class BillingService {
       newStatus = "issued";
     }
 
-    return this.repo.update(invoiceId, {
+    return this.repo.updateStatus(invoiceId, {
       amountPaid: totalPaid,
       status: newStatus as never,
     });

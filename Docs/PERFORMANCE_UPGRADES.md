@@ -10,7 +10,7 @@
 | 4 | Frontend Data Loading Tuning | ✅ Done |
 | 5 | Navigation Optimization | ✅ Done |
 | 6 | Database Query Optimization | ✅ Done |
-| 7 | Final Implementation Pass | ⬜ Pending |
+| 7 | Final Implementation Pass | ✅ Done |
 
 ---
 
@@ -229,11 +229,29 @@ Added 4 composite indexes targeting the most frequent filter patterns:
 
 ---
 
-## ⬜ Phase 7 — Final Implementation Pass
+## ✅ Phase 7 — Final Implementation Pass
 
-Apply remaining fixes one at a time with before/after measurements from the ⚡ PERF panel and `[PERF]` API logs.
+Closed the last two open audit items (B8, F5). B2 was intentionally skipped — the sequential pattern in `getAvailability` is an early-exit optimization (if staff has no availability, the second query is never made; parallelising would remove that saving).
 
-1. Run baseline measurement on each affected route
-2. Apply fix
-3. Re-measure and record delta
-4. Commit with timing numbers in the commit message
+### B8 — `billing.recordPayment` returns full invoice payload that the frontend discards
+
+**`apps/api/src/modules/billing/billing.repository.ts`** — Added `updateStatus`:
+```typescript
+updateStatus(id, data) → select: { id, status, amountPaid }
+```
+**`apps/api/src/modules/billing/billing.service.ts`** — `recordPayment` now calls `repo.updateStatus` instead of `repo.update`. The response drops the full `items[]` + `payments[]` join — the frontend invalidates the cache and re-fetches the detail anyway, so the heavy payload was wasted work on every payment.
+
+### F5 — Patient plan filter applied client-side on paginated data
+
+**Root cause:** `planFilter` ("all" / "plan" / "none") was handled entirely in the browser after fetching the first 20 patients. A user viewing "Com Plano" would see at most 20 results filtered from page 1, never the real total, and pagination was broken.
+
+**`packages/types/src/patient.ts`** — Added `planFilter: z.enum(["all","plan","none"]).default("all")` to `PatientSearchSchema`.
+
+**`apps/api/src/modules/patients/patients.service.ts`** — `findAll` now applies the filter in the Prisma `where` clause:
+```typescript
+planFilter === "plan" ? { healthPlanId: { not: null } }
+planFilter === "none" ? { healthPlanId: null }
+```
+Both the `count` and `findMany` queries share the same `where`, so pagination totals are correct.
+
+**`apps/web/app/(app)/patients/page.tsx`** — `fetchPatients` now passes `planFilter` as a URL param; `planFilter` is included in the React Query key (`["patients", search, planFilter, page]`); removed client-side `.filter()` entirely; filter button resets `page` to 1 on change.

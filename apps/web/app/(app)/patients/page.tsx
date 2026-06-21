@@ -6,9 +6,10 @@ import Link from "next/link";
 import { Search, Plus, User, ChevronLeft, ChevronRight, AlertCircle } from "lucide-react";
 import type { Patient, PaginatedResponse } from "@cms/types";
 
-async function fetchPatients(q: string, page: number) {
+async function fetchPatients(q: string, planFilter: string, page: number) {
   const params = new URLSearchParams({ page: String(page), limit: "20" });
   if (q) params.set("q", q);
+  if (planFilter !== "all") params.set("planFilter", planFilter);
   const res = await fetch(`/api/patients?${params}`);
   if (!res.ok) throw new Error("Erro ao carregar pacientes");
   return res.json() as Promise<PaginatedResponse<Patient>>;
@@ -45,17 +46,13 @@ export default function PatientsPage() {
   const [planFilter, setPlanFilter] = useState("all");
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["patients", search, page],
-    queryFn: () => fetchPatients(search, page),
+    queryKey: ["patients", search, planFilter, page],
+    queryFn: () => fetchPatients(search, planFilter, page),
     placeholderData: (prev) => prev,
     staleTime: 30_000,
   });
 
-  const filtered = data?.data.filter((p) => {
-    if (planFilter === "plan") return !!p.healthPlanId;
-    if (planFilter === "none") return !p.healthPlanId;
-    return true;
-  }) ?? [];
+  const filtered = data?.data ?? [];
 
   return (
     <div className="flex flex-col gap-5">
@@ -93,7 +90,7 @@ export default function PatientsPage() {
           {PLAN_FILTERS.map((f) => (
             <button
               key={f.key}
-              onClick={() => setPlanFilter(f.key)}
+              onClick={() => { setPlanFilter(f.key); setPage(1); }}
               className={`px-3 py-1.5 rounded-[8px] text-[12px] font-medium transition-colors ${
                 planFilter === f.key
                   ? "bg-brand-700 text-white shadow-[0_1px_2px_rgba(0,0,0,.08)]"

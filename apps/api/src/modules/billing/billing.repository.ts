@@ -62,6 +62,14 @@ export class BillingRepository {
     });
   }
 
+  updateStatus(id: string, data: Prisma.InvoiceUpdateInput) {
+    return this.prisma.invoice.update({
+      where: { id },
+      data,
+      select: { id: true, status: true, amountPaid: true },
+    });
+  }
+
   createPayment(data: Prisma.PaymentCreateInput) {
     return this.prisma.payment.create({ data });
   }
