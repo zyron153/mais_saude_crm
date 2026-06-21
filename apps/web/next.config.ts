@@ -1,7 +1,15 @@
 import type { NextConfig } from "next";
+import withBundleAnalyzer from "@next/bundle-analyzer";
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@cms/types"],
+  transpilePackages: [
+    "@cms/types",
+    "@fullcalendar/core",
+    "@fullcalendar/react",
+    "@fullcalendar/daygrid",
+    "@fullcalendar/timegrid",
+    "@fullcalendar/interaction",
+  ],
   async rewrites() {
     return [
       {
@@ -12,4 +20,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withBundleAnalyzer({ enabled: process.env.ANALYZE === "true" })(nextConfig);

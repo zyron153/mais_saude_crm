@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Bricolage_Grotesque, Work_Sans, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
+import { WebVitals } from "./web-vitals";
 
 const bricolage = Bricolage_Grotesque({
   subsets: ["latin"],
@@ -31,7 +32,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="pt" className={`${bricolage.variable} ${workSans.variable} ${ibmPlexMono.variable}`}>
       <body>
-        <Providers>{children}</Providers>
+        <Providers>
+          <WebVitals />
+          {children}
+        </Providers>
       </body>
     </html>
   );

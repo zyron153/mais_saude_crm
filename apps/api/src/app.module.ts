@@ -13,6 +13,7 @@ import { DocumentsModule } from "./modules/documents/documents.module";
 import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
 import { RolesGuard } from "./common/guards/roles.guard";
 import { AuditInterceptor } from "./common/interceptors/audit.interceptor";
+import { PerformanceInterceptor } from "./common/interceptors/performance.interceptor";
 import { PrismaModule } from "./prisma/prisma.module";
 import { RedisModule } from "./common/redis/redis.module";
 
@@ -39,6 +40,7 @@ import { RedisModule } from "./common/redis/redis.module";
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_INTERCEPTOR, useClass: PerformanceInterceptor },
     { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
   ],
 })

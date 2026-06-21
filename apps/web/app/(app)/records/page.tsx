@@ -1,6 +1,6 @@
 import { ClipboardList, FileText, Pill, Stethoscope, StickyNote, Plus, ChevronRight } from "lucide-react";
 
-type Record = {
+type ClinicalRecord = {
   id: string;
   ref: string;
   patient: string;
@@ -11,7 +11,7 @@ type Record = {
   status: "signed" | "draft" | "pending_review";
 };
 
-const RECORDS: Record[] = [
+const RECORDS: ClinicalRecord[] = [
   { id: "r1",  ref: "RC-2406-001", patient: "Maria da Graça",  type: "consultation",  title: "Consulta de Medicina Geral",          doctor: "Dra. Fátima Costa",  date: "2026-06-18", status: "signed"         },
   { id: "r2",  ref: "RC-2406-002", patient: "João Monteiro",   type: "prescription",  title: "Prescrição de Antibióticos",          doctor: "Dr. Nuno Barros",    date: "2026-06-18", status: "signed"         },
   { id: "r3",  ref: "RC-2406-003", patient: "Ana Lopes",       type: "procedure",     title: "Penso e Curativo — Ferida no Braço",  doctor: "Dra. Fátima Costa",  date: "2026-06-17", status: "signed"         },

@@ -2,6 +2,9 @@
   "name": "@cms/config",
   "version": "0.1.0",
   "private": true,
+  "dependencies": {
+    "tailwindcss-animate": "^1.0.7"
+  },
   "exports": {
     "./tsconfig": "./tsconfig.base.json",
     "./eslint": "./eslint-base.js",
