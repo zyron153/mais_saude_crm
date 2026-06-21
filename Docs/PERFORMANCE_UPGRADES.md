@@ -1,0 +1,176 @@
+# Performance Upgrades — Mais Saúde 360
+
+## Status
+
+| Phase | Description | Status |
+|-------|-------------|--------|
+| 1 | Full-Stack Performance Instrumentation | ✅ Done |
+| 2 | API Waterfall Detection & Audit | ✅ Done |
+| 3 | BFF (Backend for Frontend) Endpoints | ✅ Done |
+| 4 | Frontend Data Loading Tuning | ⬜ Pending |
+| 5 | Navigation Optimization | ⬜ Pending |
+| 6 | Database Query Optimization | ⬜ Pending |
+| 7 | Final Implementation Pass | ⬜ Pending |
+
+---
+
+## ✅ Phase 1 — Full-Stack Performance Instrumentation
+
+Instruments the full stack so every future optimization has a before/after measurement. Nothing optimized — only measured.
+
+### Backend (3 files)
+
+**`apps/api/src/common/context/request-context.ts`** — NEW
+Node.js `AsyncLocalStorage` scopes per-request state through the entire call stack including Prisma callbacks.
+
+**`apps/api/src/common/interceptors/performance.interceptor.ts`** — NEW
+Wraps every request. On response sets headers:
+- `X-Request-Id`, `X-Request-Duration`, `X-Query-Count`, `X-Query-Time`
+
+Logs `[PERF]` for every request and `[SLOW]` for requests >100ms. Registered as the first `APP_INTERCEPTOR` in `app.module.ts`.
+
+**`apps/api/src/prisma/prisma.service.ts`** — MODIFIED
+Enabled `log: [{ emit: 'event', level: 'query' }]`. Pushes each query's duration to `RequestContext`. Warns on slow queries (>100ms).
+
+### Frontend (4 files)
+
+**`apps/web/app/web-vitals.tsx`** — NEW
+`useReportWebVitals` hook (Next.js built-in). Logs LCP, FID, CLS, FCP, TTFB to console with color-coded rating. Pushes to perf store.
+
+**`apps/web/lib/perf-store.ts`** — NEW
+Zustand store tracking per-route metrics: transition time, API calls, duplicate calls, SQL query count/time, Web Vitals. Monkey-patches `window.fetch` to intercept timing and read `X-Query-*` response headers.
+
+**`apps/web/components/dev/PerfPanel.tsx`** — NEW
+Floating ⚡ PERF overlay (bottom-right, `z-[9999]`). Shows route transition time, API calls, duplicate detection (DUP label), SQL stats, Web Vitals. Dev only.
+
+**`apps/web/app/(app)/layout.tsx`** — MODIFIED
+Added `<PerfPanel />` (dev only).
+
+### Bundle Analyzer
+- Added `@next/bundle-analyzer` to `apps/web/package.json`
+- `next.config.ts` wraps config with `withBundleAnalyzer({ enabled: ANALYZE === 'true' })`
+- Run: `ANALYZE=true pnpm --filter @cms/web build`
+
+---
+
+## ✅ Phase 2 — API Waterfall Detection & Audit
+
+Read-only audit of all pages and backend services. No code changes.
+
+### Frontend findings
+
+| ID | Page | Issue | Severity |
+|----|------|-------|----------|
+| F1 | appointments | No `staleTime` — every revisit refetches | Medium |
+| F2 | appointments | Socket invalidates all `["appointments"]` queries (too broad) | High |
+| F3 | appointments | Query key doesn't encode date range | Medium |
+| F4 | patients | No `staleTime` | Medium |
+| F5 | patients | Plan filter applied client-side after fetching all rows | Low |
+| F6 | patients/[id] | 2 HTTP requests for 1 screen (patient + timeline) | High |
+| F7 | patients/[id] | No `staleTime` on either query | Medium |
+| F8 | billing | KPI cards (Emitidas, Receita, Vencidas) always show "—" — never fetched | Medium |
+| F9 | billing | No `staleTime` | Medium |
+| F10 | billing/[id] | Payment mutation invalidates all `["invoices"]` (over-invalidation) | Medium |
+| F11 | billing/[id] | No `staleTime` | Medium |
+
+### Backend findings
+
+| ID | Service | Issue | Severity |
+|----|---------|-------|----------|
+| B1 | appointments.reschedule | N+1 Bull queue loop — 3 sequential `getJob()` calls | High |
+| B2 | appointments.getAvailability | 2 independent queries run sequentially | Low |
+| B3 | patients.create | Phone + NIF uniqueness checks run sequentially | Low |
+| B4 | patients.findAll | No `select` — returns full row including encrypted NIF | Medium |
+| B5 | patients.findById | Returns flat patient, no health plan relation | Medium |
+| B6 | billing.recordPayment | 3 sequential queries; first over-fetches full invoice to read `total` | High |
+| B7 | billing.findById | Always includes `items + payments` — wasteful for receipt endpoint | Medium |
+| B8 | billing.update | Returns `items + payments` after payment when only status needed | Low |
+| B9 | healthPlans.findAllPlans | Always includes full `product` (with `coverageRules` JSON) + full `company` | Medium |
+| B10 | companies.deactivate | Loads full company + health plans tree just to check existence | Low |
+
+---
+
+## ✅ Phase 3 — BFF (Backend for Frontend) Endpoints
+
+Created screen-oriented endpoints that collapse multiple API calls into one.
+
+### New files
+
+**`apps/api/src/modules/bff/bff.service.ts`**
+- `getPatientScreen(id)` — 4 parallel Prisma queries in a single request:
+  patient (with `healthPlan.name`), appointments (take 20), communications (take 20), invoices (take 20). Assembles and sorts timeline server-side. Fixes F6 + B5.
+- `getBillingSummary()` — 3 parallel aggregates: issued count, collected amount, overdue count (this month). Fixes F8.
+
+**`apps/api/src/modules/bff/bff.controller.ts`**
+- `GET /v1/bff/patient-screen/:id`
+- `GET /v1/bff/billing-summary`
+
+**`apps/api/src/modules/bff/bff.module.ts`** — imports `PrismaModule`.
+
+### Modified files
+
+**`apps/api/src/app.module.ts`** — imports `BffModule`.
+
+**`apps/api/src/modules/appointments/appointments.service.ts`**
+- Fixed B1: replaced `for` loop with `Promise.all` for Bull queue lookups.
+
+**`apps/api/src/modules/patients/patients.service.ts`**
+- Fixed B3: phone + NIF uniqueness checks now run in parallel via `Promise.all`.
+
+**`apps/api/src/modules/patients/patients.repository.ts`**
+- Reduced timeline `take: 50 → 20` per collection.
+
+**`apps/web/app/(app)/patients/[id]/page.tsx`**
+- Replaced 2 `useQuery` calls with 1 BFF call to `/api/bff/patient-screen/:id`. Fixes F6.
+- Now shows `healthPlan.name` instead of generic "Plano Ativo" badge. Fixes B5.
+- Added `staleTime: 60_000`. Fixes F7.
+
+**`apps/web/app/(app)/billing/page.tsx`**
+- Added `useQuery` for `/api/bff/billing-summary` with `staleTime: 60_000`. Fixes F8.
+- KPI cards (Emitidas, Receita Cobrada, Vencidas) now show real values.
+- Added `staleTime: 30_000` on the invoices list query. Fixes F9.
+
+---
+
+## ⬜ Phase 4 — Frontend Data Loading Tuning
+
+Tune React Query across all live-data pages. Targets: F1, F3, F4, F10, F11.
+
+- Set per-page `staleTime` appropriate to data freshness
+- Encode date range in appointments query key (F3)
+- Scope socket invalidation to exact key `["appointments", "calendar", { from, to }]` (F2)
+- Narrow `invalidateQueries` in billing payment mutation to `["invoices", invoiceId]` (F10)
+
+---
+
+## ⬜ Phase 5 — Navigation Optimization
+
+Reduce blank-screen time on first visit to each route.
+
+- Add `<Link prefetch>` on sidebar links (they currently use default lazy prefetch)
+- Investigate whether `router.prefetch()` should be called on sidebar hover
+- Verify `loading.tsx` skeletons cover all pages with live data
+
+---
+
+## ⬜ Phase 6 — Database Query Optimization
+
+Add missing indexes, reduce over-fetching on high-traffic queries.
+
+- Fix B4: add `select` to `patients.findAll` to exclude encrypted NIF, emergency contacts
+- Fix B6: rewrite `billing.recordPayment` to fetch only `{ total, status }` in query 1
+- Fix B7: create a `findByIdLite` variant that excludes `items + payments` for receipt/status checks
+- Fix B9: add `select` to `healthPlans.findAllPlans` to exclude `coverageRules` JSON blob
+- Fix B10: replace full include in `companies.deactivate` with `findFirst({ where: { id } })` existence check
+- Audit and add composite indexes for common filter patterns (patient timeline, invoice by status+date)
+
+---
+
+## ⬜ Phase 7 — Final Implementation Pass
+
+Apply remaining fixes one at a time with before/after measurements from the ⚡ PERF panel and `[PERF]` API logs.
+
+1. Run baseline measurement on each affected route
+2. Apply fix
+3. Re-measure and record delta
+4. Commit with timing numbers in the commit message

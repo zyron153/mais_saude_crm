@@ -64,7 +64,7 @@ export class PatientsRepository {
           staff: { select: { fullName: true } },
         },
         orderBy: { scheduledAt: "desc" },
-        take: 50,
+        take: 20,
       }),
       this.prisma.communicationLog.findMany({
         where: { patientId },
@@ -76,7 +76,7 @@ export class PatientsRepository {
           createdAt: true,
         },
         orderBy: { createdAt: "desc" },
-        take: 50,
+        take: 20,
       }),
       this.prisma.invoice.findMany({
         where: { patientId },
@@ -89,7 +89,7 @@ export class PatientsRepository {
           createdAt: true,
         },
         orderBy: { createdAt: "desc" },
-        take: 50,
+        take: 20,
       }),
     ]);
   }

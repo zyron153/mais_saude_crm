@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { format } from "date-fns";
 import { pt } from "date-fns/locale";
-import { Plus, Receipt, ChevronLeft, ChevronRight, TrendingUp, AlertCircle, CheckCircle, Clock } from "lucide-react";
+import { Plus, Receipt, ChevronLeft, ChevronRight, TrendingUp, AlertCircle, Clock } from "lucide-react";
 import type { Invoice, PaginatedResponse } from "@cms/types";
 
 async function fetchInvoices(page: number, status?: string) {
@@ -14,6 +14,18 @@ async function fetchInvoices(page: number, status?: string) {
   const res = await fetch(`/api/invoices?${params}`);
   if (!res.ok) throw new Error("Erro ao carregar faturas");
   return res.json() as Promise<PaginatedResponse<Invoice & { patient: { fullName: string } }>>;
+}
+
+interface BillingSummary {
+  issuedCount: number;
+  collectedAmount: number;
+  overdueCount: number;
+}
+
+async function fetchBillingSummary(): Promise<BillingSummary> {
+  const res = await fetch("/api/bff/billing-summary");
+  if (!res.ok) throw new Error("Erro ao carregar resumo");
+  return res.json();
 }
 
 const STATUS_META: Record<string, { label: string; cls: string }> = {
@@ -55,6 +67,13 @@ export default function BillingPage() {
     queryKey: ["invoices", page, statusFilter],
     queryFn: () => fetchInvoices(page, statusFilter || undefined),
     placeholderData: (prev) => prev,
+    staleTime: 30_000,
+  });
+
+  const { data: summary } = useQuery({
+    queryKey: ["billing-summary"],
+    queryFn: fetchBillingSummary,
+    staleTime: 60_000,
   });
 
   return (
@@ -81,9 +100,9 @@ export default function BillingPage() {
       <div className="grid grid-cols-4 gap-4">
         {[
           { icon: Receipt,      label: "Total Faturas",    value: data?.total ?? "—",       sub: "este mês",          bg: "bg-dim-100",     cls: "text-dim-600"     },
-          { icon: Clock,        label: "Emitidas",         value: "—",                      sub: "aguardam pagamento", bg: "bg-brand-50",    cls: "text-brand-600"   },
-          { icon: TrendingUp,   label: "Receita Cobrada",  value: "—",                      sub: "CVE recebidos",      bg: "bg-emerald-50",  cls: "text-emerald-600" },
-          { icon: AlertCircle,  label: "Vencidas",         value: "—",                      sub: "requerem atenção",   bg: "bg-red-50",      cls: "text-red-500"     },
+          { icon: Clock,        label: "Emitidas",         value: summary ? summary.issuedCount : "—",                                                    sub: "aguardam pagamento", bg: "bg-brand-50",    cls: "text-brand-600"   },
+          { icon: TrendingUp,   label: "Receita Cobrada",  value: summary ? summary.collectedAmount.toLocaleString("pt-CV") : "—",                         sub: "CVE recebidos",      bg: "bg-emerald-50",  cls: "text-emerald-600" },
+          { icon: AlertCircle,  label: "Vencidas",         value: summary ? summary.overdueCount : "—",                                                    sub: "requerem atenção",   bg: "bg-red-50",      cls: "text-red-500"     },
         ].map((s) => (
           <div key={s.label} className={CARD}>
             <div className="px-5 py-5">

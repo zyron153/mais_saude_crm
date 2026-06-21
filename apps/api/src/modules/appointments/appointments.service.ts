@@ -174,14 +174,16 @@ export class AppointmentsService {
 
     const newTime = new Date(dto.scheduledAt);
 
-    // Cancel existing reminder jobs
+    // Cancel existing reminder jobs — parallel to avoid N+1 queue lookups
     const existingReminders = await this.repo.deleteReminders(id);
-    for (const r of existingReminders) {
-      if (r.bullJobId) {
-        const job = await this.remindersQueue.getJob(r.bullJobId);
-        await job?.remove();
-      }
-    }
+    await Promise.all(
+      existingReminders
+        .filter((r) => r.bullJobId)
+        .map(async (r) => {
+          const job = await this.remindersQueue.getJob(r.bullJobId!);
+          await job?.remove();
+        })
+    );
 
     const updated = await this.repo.update(id, {
       scheduledAt: newTime,

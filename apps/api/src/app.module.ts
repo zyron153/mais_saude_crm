@@ -10,6 +10,7 @@ import { BillingModule } from "./modules/billing/billing.module";
 import { HealthPlansModule } from "./modules/health-plans/health-plans.module";
 import { CompaniesModule } from "./modules/companies/companies.module";
 import { DocumentsModule } from "./modules/documents/documents.module";
+import { BffModule } from "./modules/bff/bff.module";
 import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
 import { RolesGuard } from "./common/guards/roles.guard";
 import { AuditInterceptor } from "./common/interceptors/audit.interceptor";
@@ -36,6 +37,7 @@ import { RedisModule } from "./common/redis/redis.module";
     HealthPlansModule,
     CompaniesModule,
     DocumentsModule,
+    BffModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

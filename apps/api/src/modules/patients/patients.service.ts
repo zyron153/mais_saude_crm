@@ -49,20 +49,20 @@ export class PatientsService {
   async create(dto: CreatePatientDto) {
     const normalizedPhone = this.normalizePhone(dto.phone);
 
-    const existing = await this.repo.findByPhone(normalizedPhone);
+    const [existing, existingNif] = await Promise.all([
+      this.repo.findByPhone(normalizedPhone),
+      dto.nif ? this.repo.findByNif(dto.nif) : null,
+    ]);
+
     if (existing) {
       throw new ConflictException(
         `A patient with phone ${normalizedPhone} already exists`
       );
     }
-
-    if (dto.nif) {
-      const existingNif = await this.repo.findByNif(dto.nif);
-      if (existingNif) {
-        throw new ConflictException(
-          `A patient with NIF ${dto.nif} already exists`
-        );
-      }
+    if (existingNif) {
+      throw new ConflictException(
+        `A patient with NIF ${dto.nif} already exists`
+      );
     }
 
     return this.repo.create({

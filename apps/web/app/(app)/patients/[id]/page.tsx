@@ -18,15 +18,14 @@ import {
 } from "lucide-react";
 import type { Patient, TimelineEvent } from "@cms/types";
 
-async function fetchPatient(id: string): Promise<Patient> {
-  const res = await fetch(`/api/patients/${id}`);
-  if (!res.ok) throw new Error("Paciente não encontrado");
-  return res.json();
+interface PatientScreenResponse {
+  patient: Patient & { healthPlan?: { name: string } | null };
+  timeline: TimelineEvent[];
 }
 
-async function fetchTimeline(id: string): Promise<TimelineEvent[]> {
-  const res = await fetch(`/api/patients/${id}/timeline`);
-  if (!res.ok) throw new Error("Erro ao carregar timeline");
+async function fetchPatientScreen(id: string): Promise<PatientScreenResponse> {
+  const res = await fetch(`/api/bff/patient-screen/${id}`);
+  if (!res.ok) throw new Error("Paciente não encontrado");
   return res.json();
 }
 
@@ -40,14 +39,14 @@ const EVENT_MAP: Record<string, { icon: typeof CalendarDays; bg: string; color: 
 const CARD = "bg-white rounded-[16px] border border-dim-200 shadow-[0_1px_4px_rgba(0,0,0,.08),0_0_0_1px_rgba(0,0,0,.03)] overflow-hidden";
 
 export default function PatientProfilePage({ params }: { params: { id: string } }) {
-  const { data: patient, isLoading } = useQuery({
-    queryKey: ["patient", params.id],
-    queryFn: () => fetchPatient(params.id),
+  const { data, isLoading } = useQuery({
+    queryKey: ["patient-screen", params.id],
+    queryFn: () => fetchPatientScreen(params.id),
+    staleTime: 60_000,
   });
-  const { data: timeline } = useQuery({
-    queryKey: ["patient-timeline", params.id],
-    queryFn: () => fetchTimeline(params.id),
-  });
+
+  const patient = data?.patient;
+  const timeline = data?.timeline;
 
   if (isLoading) {
     return (
@@ -92,11 +91,15 @@ export default function PatientProfilePage({ params }: { params: { id: string } 
               </div>
               <h2 className="mt-3 font-display font-bold text-dim-900 text-[17px] leading-tight">{patient.fullName}</h2>
               <p className="text-[12px] text-dim-500 mt-0.5">{age} anos · {genderLabels[patient.gender] ?? patient.gender}</p>
-              {patient.healthPlanId && (
+              {patient.healthPlan ? (
+                <span className="inline-block mt-2 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700">
+                  {patient.healthPlan.name}
+                </span>
+              ) : patient.healthPlanId ? (
                 <span className="inline-block mt-2 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700">
                   Plano Ativo
                 </span>
-              )}
+              ) : null}
             </div>
 
             {/* Details */}
