@@ -53,6 +53,7 @@ export default function InvoiceDetailPage({ params }: { params: { id: string } }
   const { data: invoice, isLoading } = useQuery({
     queryKey: ["invoice", params.id],
     queryFn: () => fetchInvoice(params.id),
+    staleTime: 60_000,
   });
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<RecordPaymentDto>({
@@ -65,6 +66,7 @@ export default function InvoiceDetailPage({ params }: { params: { id: string } }
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["invoice", params.id] });
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["billing-summary"] });
       reset();
     },
   });

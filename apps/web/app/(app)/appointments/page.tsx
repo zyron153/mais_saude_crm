@@ -80,23 +80,27 @@ export default function AppointmentsPage() {
   const [view, setView] = useState<"calendar" | "list">("calendar");
   const queryClient = useQueryClient();
 
+  const now = new Date();
+  const from = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+  const to   = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-31`;
+
   const { data: appointments, isLoading } = useQuery<Appointment[]>({
-    queryKey: ["appointments", "calendar"],
-    queryFn: () => {
-      const now = new Date();
-      const from = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-      const to   = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-31`;
-      return fetchAppointments(from, to);
-    },
+    queryKey: ["appointments", "calendar", from, to],
+    queryFn: () => fetchAppointments(from, to),
+    staleTime: 60_000,
   });
 
   useEffect(() => {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
     const socket = io(`${apiUrl}/calendar`, { path: "/socket.io" });
-    socket.on("appointment:created", () => queryClient.invalidateQueries({ queryKey: ["appointments"] }));
-    socket.on("appointment:updated", () => queryClient.invalidateQueries({ queryKey: ["appointments"] }));
+    socket.on("appointment:created", () =>
+      queryClient.invalidateQueries({ queryKey: ["appointments", "calendar", from, to] })
+    );
+    socket.on("appointment:updated", () =>
+      queryClient.invalidateQueries({ queryKey: ["appointments", "calendar", from, to] })
+    );
     return () => { socket.disconnect(); };
-  }, [queryClient]);
+  }, [queryClient, from, to]);
 
   const events = (appointments ?? []).map((a) => ({
     id: a.id,

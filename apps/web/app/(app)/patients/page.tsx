@@ -48,6 +48,7 @@ export default function PatientsPage() {
     queryKey: ["patients", search, page],
     queryFn: () => fetchPatients(search, page),
     placeholderData: (prev) => prev,
+    staleTime: 30_000,
   });
 
   const filtered = data?.data.filter((p) => {
