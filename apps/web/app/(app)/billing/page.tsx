@@ -7,6 +7,7 @@ import { format } from "date-fns";
 import { pt } from "date-fns/locale";
 import { Plus, Receipt, ChevronLeft, ChevronRight, TrendingUp, AlertCircle, Clock } from "lucide-react";
 import type { Invoice, PaginatedResponse } from "@cms/types";
+import { Modal } from "../../../components/ui/modal";
 
 async function fetchInvoices(page: number, status?: string) {
   const params = new URLSearchParams({ page: String(page), limit: "20" });
@@ -47,6 +48,10 @@ const FILTERS = [
 
 const CARD = "bg-white rounded-[16px] border border-dim-200 shadow-[0_1px_4px_rgba(0,0,0,.08),0_0_0_1px_rgba(0,0,0,.03)] overflow-hidden";
 
+const inputCls = "w-full border border-dim-200 rounded-[10px] px-3.5 py-2.5 text-[13px] text-dim-900 placeholder:text-dim-400 bg-white focus:outline-none focus:border-brand-500 focus:shadow-[0_0_0_3px_rgba(19,163,163,.12)] transition-all shadow-[0_1px_2px_rgba(0,0,0,.05)]";
+
+const BLANK_FORM = { patient: "", service: "", amount: "", notes: "" };
+
 function SkeletonRow() {
   return (
     <tr className="animate-pulse">
@@ -59,9 +64,32 @@ function SkeletonRow() {
   );
 }
 
+type LocalInvoice = { id: string; invoiceNumber: string; patient: { fullName: string }; total: number; amountPaid: number; status: "draft"; issuedAt: string | null };
+
 export default function BillingPage() {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState("");
+  const [newOpen, setNewOpen] = useState(false);
+  const [form, setForm] = useState(BLANK_FORM);
+  const [localInvoices, setLocalInvoices] = useState<LocalInvoice[]>([]);
+
+  function set(k: keyof typeof BLANK_FORM, v: string) { setForm((f) => ({ ...f, [k]: v })); }
+
+  function addInvoice() {
+    if (!form.patient.trim()) return;
+    const n = localInvoices.length + 1;
+    setLocalInvoices((prev) => [{
+      id: `local-${Date.now()}`,
+      invoiceNumber: `RASCUNHO-${String(n).padStart(3, "0")}`,
+      patient: { fullName: form.patient.trim() },
+      total: Number(form.amount) || 0,
+      amountPaid: 0,
+      status: "draft",
+      issuedAt: null,
+    }, ...prev]);
+    setForm(BLANK_FORM);
+    setNewOpen(false);
+  }
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["invoices", page, statusFilter],
@@ -77,6 +105,7 @@ export default function BillingPage() {
   });
 
   return (
+    <>
     <div className="flex flex-col gap-5">
 
       {/* Header */}
@@ -87,13 +116,13 @@ export default function BillingPage() {
             {isLoading ? "A carregar…" : error ? "Erro ao carregar faturas" : `${data?.total ?? 0} faturas`}
           </p>
         </div>
-        <Link
-          href="/billing/new"
+        <button
+          onClick={() => setNewOpen(true)}
           className="flex items-center gap-1.5 bg-brand-700 hover:bg-brand-800 text-white text-[13px] font-semibold px-4 py-2 rounded-[10px] shadow-[0_1px_2px_rgba(0,0,0,.08)] transition-colors"
         >
           <Plus className="w-3.5 h-3.5" />
           Nova Fatura
-        </Link>
+        </button>
       </div>
 
       {/* KPI cards */}
@@ -151,6 +180,22 @@ export default function BillingPage() {
               </tr>
             </thead>
             <tbody>
+              {localInvoices.map((inv) => (
+                <tr key={inv.id} className="hover:bg-dim-50 transition-colors">
+                  <td className="px-5 py-3.5 border-b border-dim-100 font-mono text-[12px] font-semibold text-dim-900">{inv.invoiceNumber}</td>
+                  <td className="px-5 py-3.5 border-b border-dim-100">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-full bg-brand-100 text-brand-800 text-[10px] font-semibold flex items-center justify-center shrink-0">{inv.patient.fullName[0]?.toUpperCase()}</div>
+                      <span className="text-[13px] font-medium text-dim-900">{inv.patient.fullName}</span>
+                    </div>
+                  </td>
+                  <td className="px-5 py-3.5 border-b border-dim-100 font-mono text-[11px] text-dim-500">—</td>
+                  <td className="px-5 py-3.5 border-b border-dim-100 font-mono text-[13px] font-semibold text-dim-900 tabular-nums">{inv.total.toLocaleString("pt-CV")}<span className="text-[10px] font-normal text-dim-400 ml-1">CVE</span></td>
+                  <td className="px-5 py-3.5 border-b border-dim-100 font-mono text-[12px] tabular-nums text-dim-400">{inv.total.toLocaleString("pt-CV")}<span className="text-[10px] ml-1 opacity-60">CVE</span></td>
+                  <td className="px-5 py-3.5 border-b border-dim-100"><span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-dim-100 text-dim-500">Rascunho</span></td>
+                  <td className="px-5 py-3.5 border-b border-dim-100" />
+                </tr>
+              ))}
               {isLoading
                 ? Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)
                 : error
@@ -247,5 +292,35 @@ export default function BillingPage() {
         )}
       </div>
     </div>
+
+    <Modal open={newOpen} onClose={() => setNewOpen(false)} title="Nova Fatura" description="Crie um novo rascunho de fatura" size="md">
+      <div className="px-6 py-5 grid grid-cols-2 gap-4">
+        <div className="col-span-2">
+          <label className="block text-[12px] font-semibold text-dim-700 mb-1.5">Paciente *</label>
+          <input value={form.patient} onChange={(e) => set("patient", e.target.value)} placeholder="Nome do paciente" className={inputCls} />
+        </div>
+        <div>
+          <label className="block text-[12px] font-semibold text-dim-700 mb-1.5">Serviço / Descrição</label>
+          <input value={form.service} onChange={(e) => set("service", e.target.value)} placeholder="Ex: Consulta Geral" className={inputCls} />
+        </div>
+        <div>
+          <label className="block text-[12px] font-semibold text-dim-700 mb-1.5">Valor Total (CVE)</label>
+          <input type="number" value={form.amount} onChange={(e) => set("amount", e.target.value)} placeholder="0" className={inputCls} />
+        </div>
+        <div className="col-span-2">
+          <label className="block text-[12px] font-semibold text-dim-700 mb-1.5">Notas</label>
+          <textarea value={form.notes} onChange={(e) => set("notes", e.target.value)} rows={2} placeholder="Observações opcionais…" className={`${inputCls} resize-none`} />
+        </div>
+      </div>
+      <div className="px-6 py-4 border-t border-dim-100 flex items-center gap-3">
+        <button onClick={addInvoice} className="bg-brand-700 hover:bg-brand-800 text-white font-semibold px-5 py-2.5 rounded-[10px] text-[13px] transition-colors">
+          Criar Rascunho
+        </button>
+        <button onClick={() => setNewOpen(false)} className="border border-dim-200 bg-white hover:bg-dim-50 text-dim-700 font-medium px-5 py-2.5 rounded-[10px] text-[13px] transition-colors">
+          Cancelar
+        </button>
+      </div>
+    </Modal>
+    </>
   );
 }

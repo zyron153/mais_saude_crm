@@ -1,5 +1,9 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 import { Plus, ChevronLeft, ChevronRight } from "lucide-react";
+import { Modal } from "../../../components/ui/modal";
 
 /* ─── Static mock data ─────────────────────────────────────────── */
 
@@ -173,8 +177,19 @@ const AVATAR_CLS: Record<string, string> = {
 
 /* ─── Page ─────────────────────────────────────────────────────── */
 
+const inputCls = "w-full border border-dim-200 rounded-[10px] px-3.5 py-2.5 text-[13px] text-dim-900 placeholder:text-dim-400 bg-white focus:outline-none focus:border-brand-500 focus:shadow-[0_0_0_3px_rgba(19,163,163,.12)] transition-all shadow-[0_1px_2px_rgba(0,0,0,.05)]";
+
 export default function DashboardPage() {
+  const [apptOpen, setApptOpen]       = useState(false);
+  const [patientOpen, setPatientOpen] = useState(false);
+  const [apptForm, setApptForm]       = useState({ patient: "", service: "", scheduledAt: "", notes: "" });
+  const [patientForm, setPatientForm] = useState({ fullName: "", phone: "", email: "", gender: "female" });
+
+  function setA(k: string, v: string) { setApptForm((f) => ({ ...f, [k]: v })); }
+  function setP(k: string, v: string) { setPatientForm((f) => ({ ...f, [k]: v })); }
+
   return (
+    <>
     <div className="flex flex-col gap-5">
 
       {/* ── KPI Stats ── */}
@@ -216,10 +231,10 @@ export default function DashboardPage() {
             </div>
             <div className="flex items-center gap-2">
               <button className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-dim-100 text-dim-600 hover:bg-dim-200 transition-colors">Semana</button>
-              <Link href="/appointments/new" className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-brand-700 text-white hover:bg-brand-800 transition-colors">
+              <button onClick={() => setApptOpen(true)} className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-brand-700 text-white hover:bg-brand-800 transition-colors">
                 <Plus className="w-2.5 h-2.5" />
                 Nova Consulta
-              </Link>
+              </button>
             </div>
           </div>
 
@@ -349,10 +364,10 @@ export default function DashboardPage() {
           </div>
           <div className="flex items-center gap-2">
             <button className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-dim-100 text-dim-600 hover:bg-dim-200 transition-colors">Filtros</button>
-            <Link href="/patients/new" className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-brand-700 text-white hover:bg-brand-800 transition-colors">
+            <button onClick={() => setPatientOpen(true)} className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-brand-700 text-white hover:bg-brand-800 transition-colors">
               <Plus className="w-2.5 h-2.5" />
               Novo Paciente
-            </Link>
+            </button>
           </div>
         </div>
         <table className="w-full border-collapse">
@@ -513,5 +528,60 @@ export default function DashboardPage() {
 
       </div>
     </div>
+
+    <Modal open={apptOpen} onClose={() => setApptOpen(false)} title="Nova Consulta">
+      <div className="flex flex-col gap-3.5">
+        <div>
+          <label className="block text-[11px] font-semibold text-dim-500 mb-1.5">Paciente *</label>
+          <input className={inputCls} placeholder="Nome do paciente" value={apptForm.patient} onChange={(e) => setA("patient", e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-[11px] font-semibold text-dim-500 mb-1.5">Serviço</label>
+          <input className={inputCls} placeholder="Ex: Consulta Geral" value={apptForm.service} onChange={(e) => setA("service", e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-[11px] font-semibold text-dim-500 mb-1.5">Data e Hora *</label>
+          <input type="datetime-local" className={inputCls} value={apptForm.scheduledAt} onChange={(e) => setA("scheduledAt", e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-[11px] font-semibold text-dim-500 mb-1.5">Notas</label>
+          <textarea className={inputCls} rows={2} placeholder="Observações..." value={apptForm.notes} onChange={(e) => setA("notes", e.target.value)} />
+        </div>
+        <div className="flex justify-end gap-2 pt-1">
+          <button onClick={() => setApptOpen(false)} className="px-4 py-2 text-[12px] font-semibold rounded-[10px] border border-dim-200 text-dim-700 hover:bg-dim-50 transition-colors">Cancelar</button>
+          <button onClick={() => setApptOpen(false)} disabled={!apptForm.patient.trim() || !apptForm.scheduledAt} className="px-4 py-2 text-[12px] font-semibold rounded-[10px] bg-brand-700 text-white hover:bg-brand-800 transition-colors disabled:opacity-50">Adicionar</button>
+        </div>
+      </div>
+    </Modal>
+
+    <Modal open={patientOpen} onClose={() => setPatientOpen(false)} title="Novo Paciente">
+      <div className="flex flex-col gap-3.5">
+        <div>
+          <label className="block text-[11px] font-semibold text-dim-500 mb-1.5">Nome Completo *</label>
+          <input className={inputCls} placeholder="Nome do paciente" value={patientForm.fullName} onChange={(e) => setP("fullName", e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-[11px] font-semibold text-dim-500 mb-1.5">Telefone</label>
+          <input className={inputCls} placeholder="+238 000 0000" value={patientForm.phone} onChange={(e) => setP("phone", e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-[11px] font-semibold text-dim-500 mb-1.5">Email</label>
+          <input type="email" className={inputCls} placeholder="email@exemplo.cv" value={patientForm.email} onChange={(e) => setP("email", e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-[11px] font-semibold text-dim-500 mb-1.5">Género</label>
+          <select className={inputCls} value={patientForm.gender} onChange={(e) => setP("gender", e.target.value)}>
+            <option value="female">Feminino</option>
+            <option value="male">Masculino</option>
+            <option value="other">Outro</option>
+          </select>
+        </div>
+        <div className="flex justify-end gap-2 pt-1">
+          <button onClick={() => setPatientOpen(false)} className="px-4 py-2 text-[12px] font-semibold rounded-[10px] border border-dim-200 text-dim-700 hover:bg-dim-50 transition-colors">Cancelar</button>
+          <button onClick={() => setPatientOpen(false)} disabled={!patientForm.fullName.trim()} className="px-4 py-2 text-[12px] font-semibold rounded-[10px] bg-brand-700 text-white hover:bg-brand-800 transition-colors disabled:opacity-50">Adicionar</button>
+        </div>
+      </div>
+    </Modal>
+    </>
   );
 }

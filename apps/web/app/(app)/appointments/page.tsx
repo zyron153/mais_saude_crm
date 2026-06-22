@@ -8,6 +8,7 @@ import { pt } from "date-fns/locale";
 import Link from "next/link";
 import { Plus, CalendarDays, List } from "lucide-react";
 import { io } from "socket.io-client";
+import { Modal } from "../../../components/ui/modal";
 
 const CalendarView = dynamic(() => import("./_CalendarView"), {
   ssr: false,
@@ -76,9 +77,33 @@ const STATUS_PILL: Record<string, string> = {
 
 const CARD = "bg-white rounded-[16px] border border-dim-200 shadow-[0_1px_4px_rgba(0,0,0,.08),0_0_0_1px_rgba(0,0,0,.03)] overflow-hidden";
 
+const inputCls = "w-full border border-dim-200 rounded-[10px] px-3.5 py-2.5 text-[13px] text-dim-900 placeholder:text-dim-400 bg-white focus:outline-none focus:border-brand-500 focus:shadow-[0_0_0_3px_rgba(19,163,163,.12)] transition-all shadow-[0_1px_2px_rgba(0,0,0,.05)]";
+
+const BLANK_APPT = { patient: "", service: "", staff: "", scheduledAt: "", notes: "" };
+
 export default function AppointmentsPage() {
   const [view, setView] = useState<"calendar" | "list">("calendar");
+  const [newOpen, setNewOpen] = useState(false);
+  const [form, setForm] = useState(BLANK_APPT);
+  const [localAppts, setLocalAppts] = useState<Appointment[]>([]);
   const queryClient = useQueryClient();
+
+  function set(k: keyof typeof BLANK_APPT, v: string) { setForm((f) => ({ ...f, [k]: v })); }
+
+  function addAppt() {
+    if (!form.patient.trim() || !form.scheduledAt) return;
+    setLocalAppts((prev) => [{
+      id: `local-${Date.now()}`,
+      scheduledAt: form.scheduledAt,
+      durationMinutes: 30,
+      status: "pending",
+      patient: { fullName: form.patient.trim() },
+      service: { name: form.service.trim() || "Consulta Geral" },
+      staff: form.staff.trim() ? { fullName: form.staff.trim() } : undefined,
+    }, ...prev]);
+    setForm(BLANK_APPT);
+    setNewOpen(false);
+  }
 
   const now = new Date();
   const year  = now.getFullYear();
@@ -108,7 +133,9 @@ export default function AppointmentsPage() {
     return () => { socket.disconnect(); };
   }, [queryClient, from, to]);
 
-  const events = (appointments ?? []).map((a) => ({
+  const allAppts = [...(appointments ?? []), ...localAppts];
+
+  const events = allAppts.map((a) => ({
     id: a.id,
     title: `${a.patient.fullName} — ${a.service.name}`,
     start: a.scheduledAt,
@@ -118,16 +145,17 @@ export default function AppointmentsPage() {
     textColor: "#ffffff",
   }));
 
-  const sortedList = [...(appointments ?? [])].sort(
+  const sortedList = [...allAppts].sort(
     (a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
   );
 
-  const today    = (appointments ?? []).length;
-  const pending  = (appointments ?? []).filter((a) => a.status === "pending").length;
-  const confirmed = (appointments ?? []).filter((a) => a.status === "confirmed").length;
-  const completed = (appointments ?? []).filter((a) => a.status === "completed").length;
+  const today    = allAppts.length;
+  const pending  = allAppts.filter((a) => a.status === "pending").length;
+  const confirmed = allAppts.filter((a) => a.status === "confirmed").length;
+  const completed = allAppts.filter((a) => a.status === "completed").length;
 
   return (
+    <>
     <div className="flex flex-col gap-5">
 
       {/* Header */}
@@ -159,13 +187,13 @@ export default function AppointmentsPage() {
             </button>
           </div>
 
-          <Link
-            href="/appointments/new"
+          <button
+            onClick={() => setNewOpen(true)}
             className="flex items-center gap-1.5 bg-brand-700 hover:bg-brand-800 text-white text-[13px] font-semibold px-4 py-2 rounded-[10px] shadow-[0_1px_2px_rgba(0,0,0,.08)] transition-colors"
           >
             <Plus className="w-3.5 h-3.5" />
             Nova Marcação
-          </Link>
+          </button>
         </div>
       </div>
 
@@ -281,5 +309,39 @@ export default function AppointmentsPage() {
         </div>
       )}
     </div>
+
+    <Modal open={newOpen} onClose={() => setNewOpen(false)} title="Nova Marcação" description="Agende uma nova consulta ou procedimento" size="md">
+      <div className="px-6 py-5 grid grid-cols-2 gap-4">
+        <div className="col-span-2">
+          <label className="block text-[12px] font-semibold text-dim-700 mb-1.5">Paciente *</label>
+          <input value={form.patient} onChange={(e) => set("patient", e.target.value)} placeholder="Nome do paciente" className={inputCls} />
+        </div>
+        <div>
+          <label className="block text-[12px] font-semibold text-dim-700 mb-1.5">Serviço</label>
+          <input value={form.service} onChange={(e) => set("service", e.target.value)} placeholder="Ex: Consulta Geral" className={inputCls} />
+        </div>
+        <div>
+          <label className="block text-[12px] font-semibold text-dim-700 mb-1.5">Médico/a</label>
+          <input value={form.staff} onChange={(e) => set("staff", e.target.value)} placeholder="Ex: Dr. Carlos Silva" className={inputCls} />
+        </div>
+        <div className="col-span-2">
+          <label className="block text-[12px] font-semibold text-dim-700 mb-1.5">Data e Hora *</label>
+          <input type="datetime-local" value={form.scheduledAt} onChange={(e) => set("scheduledAt", e.target.value)} className={inputCls} />
+        </div>
+        <div className="col-span-2">
+          <label className="block text-[12px] font-semibold text-dim-700 mb-1.5">Notas</label>
+          <textarea value={form.notes} onChange={(e) => set("notes", e.target.value)} rows={2} placeholder="Observações opcionais…" className={`${inputCls} resize-none`} />
+        </div>
+      </div>
+      <div className="px-6 py-4 border-t border-dim-100 flex items-center gap-3">
+        <button onClick={addAppt} className="bg-brand-700 hover:bg-brand-800 text-white font-semibold px-5 py-2.5 rounded-[10px] text-[13px] transition-colors">
+          Guardar Marcação
+        </button>
+        <button onClick={() => setNewOpen(false)} className="border border-dim-200 bg-white hover:bg-dim-50 text-dim-700 font-medium px-5 py-2.5 rounded-[10px] text-[13px] transition-colors">
+          Cancelar
+        </button>
+      </div>
+    </Modal>
+    </>
   );
 }
