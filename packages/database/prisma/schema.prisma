@@ -315,6 +315,7 @@ model Company {
   updatedAt DateTime  @updatedAt
 
   healthPlans HealthPlan[]
+  products    HealthPlanProduct[]
 
   @@index([active])
   @@map("companies")
@@ -327,6 +328,7 @@ model HealthPlanProduct {
   name            String   @db.VarChar(150)
   code            String   @unique @db.VarChar(30)
   description     String?  @db.VarChar(500)
+  companyId       String?  @db.VarChar(36)
   monthlyFee      Decimal  @db.Decimal(10, 2)
   maxMembers      Int?
   coverageRules   Json?
@@ -334,8 +336,10 @@ model HealthPlanProduct {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  company     Company?    @relation(fields: [companyId], references: [id])
   healthPlans HealthPlan[]
 
+  @@index([companyId])
   @@map("health_plan_products")
 }
 

@@ -11,6 +11,7 @@ export class HealthPlansRepository {
   findAllProducts(activeOnly = true) {
     return this.prisma.healthPlanProduct.findMany({
       where: activeOnly ? { active: true } : {},
+      include: { company: { select: { id: true, name: true } } },
       orderBy: { name: "asc" },
     });
   }

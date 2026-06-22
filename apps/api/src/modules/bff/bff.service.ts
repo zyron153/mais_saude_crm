@@ -82,6 +82,26 @@ export class BffService {
     return { patient, timeline };
   }
 
+  getStaffList() {
+    return this.prisma.staff.findMany({
+      where: { deletedAt: null },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        role: true,
+        phone: true,
+        specialtyCode: true,
+        availability: {
+          where: { active: true },
+          select: { dayOfWeek: true, startTime: true, endTime: true },
+          orderBy: { dayOfWeek: "asc" },
+        },
+      },
+      orderBy: { fullName: "asc" },
+    });
+  }
+
   async getBillingSummary() {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);

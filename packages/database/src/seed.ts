@@ -13,6 +13,12 @@ const KEYCLOAK_IDS = {
   labPedro:     "a0000000-0000-0000-0000-000000000007",
 };
 
+const COMPANY_IDS = {
+  impar:    "c0000000-0000-0000-0000-000000000001",
+  bcaSaude: "c0000000-0000-0000-0000-000000000002",
+  garantia: "c0000000-0000-0000-0000-000000000003",
+};
+
 async function main() {
   console.warn("Seeding database...");
 
@@ -84,6 +90,37 @@ async function main() {
         price: 4000,
       },
     }),
+  ]);
+
+  // ─── Companies ─────────────────────────────────────────────────────────────
+  const [compImpar, compBca, compGarantia] = await Promise.all([
+    prisma.company.upsert({
+      where: { id: COMPANY_IDS.impar },
+      update: {},
+      create: { id: COMPANY_IDS.impar, name: "IMPAR", taxId: "CV-IMPAR-001", email: "comercial@impar.cv", phone: "+2382610001", address: "Av. Cidade de Lisboa, Praia, Santiago" },
+    }),
+    prisma.company.upsert({
+      where: { id: COMPANY_IDS.bcaSaude },
+      update: {},
+      create: { id: COMPANY_IDS.bcaSaude, name: "BCA Saúde", taxId: "CV-BCA-SAUDE-002", email: "saude@bca.cv", phone: "+2382610002", address: "Rua do BCA, Praia, Santiago" },
+    }),
+    prisma.company.upsert({
+      where: { id: COMPANY_IDS.garantia },
+      update: {},
+      create: { id: COMPANY_IDS.garantia, name: "Garantia", taxId: "CV-GARANTIA-003", email: "seguros@garantia.cv", phone: "+2382610003", address: "Plateau, Praia, Santiago" },
+    }),
+  ]);
+
+  // ─── Health Plan Products ───────────────────────────────────────────────────
+  await Promise.all([
+    prisma.healthPlanProduct.upsert({ where: { code: "IMPAR-FAM-001" }, update: {}, create: { name: "Plano Familiar Ouro",        code: "IMPAR-FAM-001", companyId: compImpar.id,    monthlyFee: 4800,  coverageRules: { type: "familiar",   coverage: 85 } } }),
+    prisma.healthPlanProduct.upsert({ where: { code: "IMPAR-IND-001" }, update: {}, create: { name: "Plano Individual Plus",       code: "IMPAR-IND-001", companyId: compImpar.id,    monthlyFee: 1200,  coverageRules: { type: "particular", coverage: 70 } } }),
+    prisma.healthPlanProduct.upsert({ where: { code: "IMPAR-FAM-002" }, update: {}, create: { name: "Plano Familiar Bronze",       code: "IMPAR-FAM-002", companyId: compImpar.id,    monthlyFee: 2400,  coverageRules: { type: "familiar",   coverage: 65 } } }),
+    prisma.healthPlanProduct.upsert({ where: { code: "BCA-CORP-001"  }, update: {}, create: { name: "Corporativo Saúde Total",     code: "BCA-CORP-001",  companyId: compBca.id,      monthlyFee: 18000, coverageRules: { type: "corp",       coverage: 90 } } }),
+    prisma.healthPlanProduct.upsert({ where: { code: "BCA-CORP-002"  }, update: {}, create: { name: "Empresarial Premium",         code: "BCA-CORP-002",  companyId: compBca.id,      monthlyFee: 14400, coverageRules: { type: "corp",       coverage: 95 } } }),
+    prisma.healthPlanProduct.upsert({ where: { code: "GAR-FAM-001"   }, update: {}, create: { name: "Familiar Prata",              code: "GAR-FAM-001",   companyId: compGarantia.id, monthlyFee: 3200,  coverageRules: { type: "familiar",   coverage: 75 } } }),
+    prisma.healthPlanProduct.upsert({ where: { code: "GAR-CORP-001"  }, update: {}, create: { name: "Corporativo Essencial",       code: "GAR-CORP-001",  companyId: compGarantia.id, monthlyFee: 9000,  coverageRules: { type: "corp",       coverage: 80 } } }),
+    prisma.healthPlanProduct.upsert({ where: { code: "GAR-IND-001"   }, update: {}, create: { name: "Particular Básico",           code: "GAR-IND-001",   companyId: compGarantia.id, monthlyFee: 800,   coverageRules: { type: "particular", coverage: 60 }, active: false } }),
   ]);
 
   // ─── Rooms ─────────────────────────────────────────────────────────────────
@@ -375,7 +412,7 @@ async function main() {
   }
 
   console.warn(
-    `Seeded ${services.length} services, ${rooms.length} rooms, 7 staff, 5 patients, ${appointmentsData.length} appointments, ${holidays.length} public holidays.`
+    `Seeded 3 companies, 8 health plan products, ${services.length} services, ${rooms.length} rooms, 7 staff, 5 patients, ${appointmentsData.length} appointments, ${holidays.length} public holidays.`
   );
 }
 

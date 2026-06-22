@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Shield, Users, TrendingUp, AlertTriangle, Plus, ChevronRight } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 
@@ -16,16 +17,29 @@ type Plan = {
   status: "active" | "expiring" | "expired";
 };
 
-const PLANS_INITIAL: Plan[] = [
-  { id: "p1", name: "Plano Familiar Ouro",     insurer: "IMPAR",     type: "familiar",   subscribers: 48,  coverage: 85, renewalDate: "2026-12-31", monthlyValue: 4800,  status: "active"   },
-  { id: "p2", name: "Corporativo Saúde Total",  insurer: "BCA Saúde", type: "corp",       subscribers: 120, coverage: 90, renewalDate: "2026-08-15", monthlyValue: 18000, status: "active"   },
-  { id: "p3", name: "Plano Individual Plus",    insurer: "IMPAR",     type: "particular", subscribers: 22,  coverage: 70, renewalDate: "2026-07-01", monthlyValue: 1200,  status: "expiring" },
-  { id: "p4", name: "Familiar Prata",           insurer: "Garantia",  type: "familiar",   subscribers: 35,  coverage: 75, renewalDate: "2026-11-30", monthlyValue: 3200,  status: "active"   },
-  { id: "p5", name: "Empresarial Premium",      insurer: "BCA Saúde", type: "corp",       subscribers: 80,  coverage: 95, renewalDate: "2026-07-20", monthlyValue: 14400, status: "expiring" },
-  { id: "p6", name: "Particular Básico",        insurer: "Garantia",  type: "particular", subscribers: 15,  coverage: 60, renewalDate: "2026-05-31", monthlyValue: 800,   status: "expired"  },
-  { id: "p7", name: "Plano Familiar Bronze",    insurer: "IMPAR",     type: "familiar",   subscribers: 28,  coverage: 65, renewalDate: "2027-01-31", monthlyValue: 2400,  status: "active"   },
-  { id: "p8", name: "Corporativo Essencial",    insurer: "Garantia",  type: "corp",       subscribers: 45,  coverage: 80, renewalDate: "2026-09-30", monthlyValue: 9000,  status: "active"   },
-];
+type ApiProduct = {
+  id: string;
+  name: string;
+  monthlyFee: number;
+  active: boolean;
+  company: { id: string; name: string } | null;
+  coverageRules: { type?: string; coverage?: number } | null;
+};
+
+function toUiPlan(p: ApiProduct): Plan {
+  const rules = p.coverageRules;
+  return {
+    id: p.id,
+    name: p.name,
+    insurer: p.company?.name ?? "—",
+    type: (rules?.type ?? "particular") as Plan["type"],
+    subscribers: 0,
+    coverage: rules?.coverage ?? 0,
+    renewalDate: "",
+    monthlyValue: Number(p.monthlyFee),
+    status: p.active ? "active" : "expired",
+  };
+}
 
 const TYPE_STYLE: Record<string, string> = {
   familiar:   "bg-brand-50 text-brand-700",
@@ -65,8 +79,17 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 export default function HealthPlansPage() {
-  const [plans, setPlans] = useState<Plan[]>(PLANS_INITIAL);
+  const [plans, setPlans] = useState<Plan[]>([]);
   const [newOpen, setNewOpen] = useState(false);
+
+  const { data: apiProducts, isLoading } = useQuery<ApiProduct[]>({
+    queryKey: ["health-plan-products"],
+    queryFn: () => fetch("/api/health-plans/products?activeOnly=false").then((r) => r.json()),
+  });
+
+  useEffect(() => {
+    if (apiProducts) setPlans(apiProducts.map(toUiPlan));
+  }, [apiProducts]);
   const [managingPlan, setManagingPlan] = useState<Plan | null>(null);
   const [form, setForm] = useState({
     name: "", insurer: "", type: "familiar", coverage: "80", renewalDate: "", monthlyValue: "",
@@ -191,6 +214,9 @@ export default function HealthPlansPage() {
               </tr>
             </thead>
             <tbody>
+              {isLoading && plans.length === 0 && (
+                <tr><td colSpan={9} className="px-5 py-8 text-center text-[13px] text-dim-400">A carregar planos...</td></tr>
+              )}
               {plans.map((plan) => (
                 <tr key={plan.id} className="hover:bg-dim-50 transition-colors group">
                   <td className="px-5 py-3.5 border-b border-dim-100">
@@ -222,7 +248,7 @@ export default function HealthPlansPage() {
                     </div>
                   </td>
                   <td className="px-5 py-3.5 border-b border-dim-100 font-mono text-[11px] text-dim-600">
-                    {new Date(plan.renewalDate).toLocaleDateString("pt-CV", { day: "2-digit", month: "short", year: "numeric" })}
+                    {plan.renewalDate ? new Date(plan.renewalDate).toLocaleDateString("pt-CV", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
                   </td>
                   <td className="px-5 py-3.5 border-b border-dim-100 font-mono text-[12px] font-semibold text-dim-900">
                     {plan.monthlyValue.toLocaleString("pt-CV")} <span className="text-[10px] font-normal text-dim-400">CVE</span>
@@ -304,7 +330,7 @@ export default function HealthPlansPage() {
                   ["Subscritores", String(managingPlan.subscribers)],
                   ["Cobertura",    `${managingPlan.coverage}%`],
                   ["Valor Mensal", `${managingPlan.monthlyValue.toLocaleString("pt-CV")} CVE`],
-                  ["Renovação",    new Date(managingPlan.renewalDate).toLocaleDateString("pt-CV", { day: "2-digit", month: "long", year: "numeric" })],
+                  ["Renovação",    managingPlan.renewalDate ? new Date(managingPlan.renewalDate).toLocaleDateString("pt-CV", { day: "2-digit", month: "long", year: "numeric" }) : "—"],
                   ["Seguradora",   managingPlan.insurer],
                 ] as [string, string][]).map(([label, value]) => (
                   <div key={label}>

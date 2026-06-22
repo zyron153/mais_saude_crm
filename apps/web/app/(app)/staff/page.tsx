@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Users2, Stethoscope, UserCheck, Clock, Phone, Mail, ChevronRight, Plus, X } from "lucide-react";
 import { Modal } from "../../../components/ui/modal";
 
@@ -18,16 +19,45 @@ type StaffMember = {
   color: string;
 };
 
-const STAFF_INITIAL: StaffMember[] = [
-  { id: "s1", name: "Dra. Fátima Costa",  role: "doctor",       specialty: "Medicina Geral e Familiar", phone: "+238 991 0001", email: "fatima.costa@maissaudecv.com",  shift: { start: "08:00", end: "16:00", days: "Seg – Sex" }, status: "on_duty",  appointmentsToday: 8,  initials: "FC", color: "bg-brand-700"   },
-  { id: "s2", name: "Dr. Nuno Barros",    role: "doctor",       specialty: "Cardiologia",               phone: "+238 991 0002", email: "nuno.barros@maissaudecv.com",   shift: { start: "09:00", end: "17:00", days: "Seg, Qua, Sex" }, status: "on_duty",  appointmentsToday: 5,  initials: "NB", color: "bg-violet-700" },
-  { id: "s3", name: "Dr. Miguel Varela",  role: "doctor",       specialty: "Endocrinologia",            phone: "+238 991 0003", email: "miguel.varela@maissaudecv.com", shift: { start: "10:00", end: "18:00", days: "Ter, Qui" },    status: "off_duty", appointmentsToday: 0,  initials: "MV", color: "bg-blue-700"   },
-  { id: "s4", name: "Enf. Sofia Lima",    role: "nurse",                                                 phone: "+238 991 0004", email: "sofia.lima@maissaudecv.com",    shift: { start: "07:00", end: "15:00", days: "Seg – Sex" }, status: "on_duty",  appointmentsToday: 12, initials: "SL", color: "bg-emerald-700"},
-  { id: "s5", name: "Enf. Carlos Neves",  role: "nurse",                                                 phone: "+238 991 0005", email: "carlos.neves@maissaudecv.com",  shift: { start: "15:00", end: "23:00", days: "Seg – Sex" }, status: "off_duty", appointmentsToday: 0,  initials: "CN", color: "bg-teal-700"   },
-  { id: "s6", name: "Ana Rocha",          role: "receptionist",                                          phone: "+238 991 0006", email: "ana.rocha@maissaudecv.com",     shift: { start: "08:00", end: "16:00", days: "Seg – Sex" }, status: "on_duty",  appointmentsToday: 24, initials: "AR", color: "bg-amber-700"  },
-  { id: "s7", name: "Bruno Rodrigues",    role: "receptionist",                                          phone: "+238 991 0007", email: "bruno.rodrigues@maissaudecv.com",shift: { start: "12:00", end: "20:00", days: "Seg – Sáb" }, status: "on_duty",  appointmentsToday: 8,  initials: "BR", color: "bg-orange-700" },
-  { id: "s8", name: "Téc. Rui Tavares",  role: "technician",   specialty: "Radiologia",               phone: "+238 991 0008", email: "rui.tavares@maissaudecv.com",   shift: { start: "08:00", end: "16:00", days: "Seg – Sex" }, status: "on_leave", appointmentsToday: 0,  initials: "RT", color: "bg-rose-700"   },
-];
+type ApiStaff = {
+  id: string;
+  fullName: string;
+  email: string;
+  role: string;
+  phone: string | null;
+  specialtyCode: string | null;
+  availability: { dayOfWeek: number; startTime: string; endTime: string }[];
+};
+
+const DOW_NAMES: Record<number, string> = { 0: "Dom", 1: "Seg", 2: "Ter", 3: "Qua", 4: "Qui", 5: "Sex", 6: "Sáb" };
+
+const DB_ROLE_MAP: Record<string, StaffMember["role"]> = {
+  doctor: "doctor", nurse: "nurse", receptionist: "receptionist", lab_tech: "technician",
+  admin: "receptionist", corporate_hr: "receptionist",
+};
+
+function toUiMember(s: ApiStaff, idx: number): StaffMember {
+  const todayDow = new Date().getDay();
+  const todayAvail = s.availability.filter((a) => a.dayOfWeek === todayDow);
+  const allDays = [...new Set(s.availability.map((a) => a.dayOfWeek))].sort().map((d) => DOW_NAMES[d]).join(", ");
+  return {
+    id: s.id,
+    name: s.fullName,
+    role: DB_ROLE_MAP[s.role] ?? "receptionist",
+    specialty: s.specialtyCode ?? undefined,
+    phone: s.phone ?? "—",
+    email: s.email,
+    shift: {
+      start: todayAvail[0]?.startTime ?? "—",
+      end:   todayAvail[0]?.endTime   ?? "—",
+      days:  allDays || "—",
+    },
+    status: todayAvail.length > 0 ? "on_duty" : "off_duty",
+    appointmentsToday: 0,
+    initials: makeInitials(s.fullName),
+    color: COLORS[idx % COLORS.length],
+  };
+}
 
 const ROLE_META: Record<string, { label: string; plural: string; bg: string; cls: string }> = {
   doctor:       { label: "Médico",        plural: "Médicos",    bg: "bg-brand-50",   cls: "text-brand-700"   },
@@ -152,8 +182,17 @@ function StaffForm({ initialValues, onSave, onCancel, submitLabel }: {
 const CARD = "bg-white rounded-[16px] border border-dim-200 shadow-[0_1px_4px_rgba(0,0,0,.08),0_0_0_1px_rgba(0,0,0,.03)] overflow-hidden";
 
 export default function StaffPage() {
-  const [staff, setStaff] = useState<StaffMember[]>(STAFF_INITIAL);
+  const [staff, setStaff] = useState<StaffMember[]>([]);
   const [newOpen, setNewOpen] = useState(false);
+
+  const { data: apiStaff, isLoading } = useQuery<ApiStaff[]>({
+    queryKey: ["bff-staff"],
+    queryFn: () => fetch("/api/bff/staff").then((r) => r.json()),
+  });
+
+  useEffect(() => {
+    if (apiStaff) setStaff(apiStaff.map(toUiMember));
+  }, [apiStaff]);
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
 
   const onDuty      = staff.filter((s) => s.status === "on_duty").length;
@@ -332,6 +371,9 @@ export default function StaffPage() {
               </tr>
             </thead>
             <tbody>
+              {isLoading && staff.length === 0 && (
+                <tr><td colSpan={8} className="px-5 py-8 text-center text-[13px] text-dim-400">A carregar colaboradores...</td></tr>
+              )}
               {staff.map((member) => {
                 const roleMeta   = ROLE_META[member.role];
                 const statusMeta = STATUS_META[member.status];

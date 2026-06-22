@@ -12,6 +12,11 @@ export class BffController {
     return this.service.getPatientScreen(id);
   }
 
+  @Get("staff")
+  getStaff() {
+    return this.service.getStaffList();
+  }
+
   @Get("billing-summary")
   getBillingSummary() {
     return this.service.getBillingSummary();
