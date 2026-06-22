@@ -16,7 +16,7 @@ type CalendarEvent = {
   textColor: string;
 };
 
-export default function CalendarView({ events }: { events: CalendarEvent[] }) {
+export default function CalendarView({ events, onEventClick }: { events: CalendarEvent[]; onEventClick: (id: string) => void }) {
   return (
     <div className="p-5 [&_.fc]:font-sans [&_.fc]:text-[13px] [&_.fc-button]:!bg-brand-600 [&_.fc-button]:!border-brand-600 [&_.fc-button]:!text-white [&_.fc-button:hover]:!bg-brand-700 [&_.fc-button-active]:!bg-brand-700 [&_.fc-today-button]:!bg-dim-100 [&_.fc-today-button]:!border-dim-200 [&_.fc-today-button]:!text-dim-700 [&_.fc-today-button:hover]:!bg-dim-200 [&_.fc-daygrid-day.fc-day-today]:!bg-brand-50 [&_.fc-timegrid-col.fc-day-today]:!bg-brand-50/40 [&_.fc-col-header-cell-cushion]:!text-dim-700 [&_.fc-col-header-cell-cushion]:!font-semibold [&_.fc-daygrid-day-number]:!text-dim-600 [&_.fc-event]:!rounded-lg [&_.fc-event]:!text-xs [&_.fc-toolbar-title]:!text-dim-900 [&_.fc-toolbar-title]:!font-bold [&_.fc-toolbar-title]:!text-[17px] [&_.fc-toolbar-title]:!font-display">
       <FullCalendar
@@ -30,7 +30,7 @@ export default function CalendarView({ events }: { events: CalendarEvent[] }) {
         slotDuration="00:30:00"
         allDaySlot={false}
         height="auto"
-        eventClick={(info) => { window.location.href = `/appointments/${info.event.id}`; }}
+        eventClick={(info) => onEventClick(info.event.id)}
       />
     </div>
   );

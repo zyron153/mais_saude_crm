@@ -5,8 +5,7 @@ import dynamic from "next/dynamic";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { pt } from "date-fns/locale";
-import Link from "next/link";
-import { Plus, CalendarDays, List } from "lucide-react";
+import { Plus, CalendarDays, List, Clock, User, Stethoscope, DoorOpen, FileText } from "lucide-react";
 import { io } from "socket.io-client";
 import { Modal } from "../../../components/ui/modal";
 
@@ -30,6 +29,19 @@ const CalendarView = dynamic(() => import("./_CalendarView"), {
     </div>
   ),
 });
+
+type AppointmentDetail = {
+  id: string;
+  scheduledAt: string;
+  durationMinutes: number;
+  status: string;
+  notes: string | null;
+  createdAt: string;
+  patient: { id: string; fullName: string; phone: string | null };
+  staff: { id: string; fullName: string; role: string } | null;
+  service: { id: string; name: string; durationMinutes: number } | null;
+  room: { id: string; name: string } | null;
+};
 
 type Appointment = {
   id: string;
@@ -84,9 +96,16 @@ const BLANK_APPT = { patient: "", service: "", staff: "", scheduledAt: "", notes
 export default function AppointmentsPage() {
   const [view, setView] = useState<"calendar" | "list">("calendar");
   const [newOpen, setNewOpen] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [form, setForm] = useState(BLANK_APPT);
   const [localAppts, setLocalAppts] = useState<Appointment[]>([]);
   const queryClient = useQueryClient();
+
+  const { data: detail, isLoading: detailLoading } = useQuery<AppointmentDetail>({
+    queryKey: ["appointment", selectedId],
+    queryFn: () => fetch(`/api/appointments/${selectedId}`).then((r) => r.json()),
+    enabled: !!selectedId,
+  });
 
   function set(k: keyof typeof BLANK_APPT, v: string) { setForm((f) => ({ ...f, [k]: v })); }
 
@@ -135,7 +154,20 @@ export default function AppointmentsPage() {
 
   const allAppts = [...(appointments ?? []), ...localAppts];
 
-  const events = allAppts.map((a) => ({
+  const [activeFilters, setActiveFilters] = useState<Set<string>>(
+    () => new Set(STATUS_LEGEND.map((s) => s.key))
+  );
+  function toggleFilter(key: string) {
+    setActiveFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
+
+  const filteredAppts = allAppts.filter((a) => activeFilters.has(a.status));
+
+  const events = filteredAppts.map((a) => ({
     id: a.id,
     title: `${a.patient.fullName} — ${a.service.name}`,
     start: a.scheduledAt,
@@ -145,7 +177,7 @@ export default function AppointmentsPage() {
     textColor: "#ffffff",
   }));
 
-  const sortedList = [...allAppts].sort(
+  const sortedList = [...filteredAppts].sort(
     (a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
   );
 
@@ -212,23 +244,40 @@ export default function AppointmentsPage() {
         ))}
 
         <div className="ml-auto flex items-center gap-2">
-          {STATUS_LEGEND.map((s) => (
-            <div
-              key={s.key}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold"
-              style={{ background: s.color + "18", color: s.color }}
-            >
-              <div className="w-1.5 h-1.5 rounded-full" style={{ background: s.color }} />
-              {s.label}
-            </div>
-          ))}
+          <button
+            onClick={() => setActiveFilters(activeFilters.size === STATUS_LEGEND.length ? new Set() : new Set(STATUS_LEGEND.map((s) => s.key)))}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-opacity"
+            style={activeFilters.size === STATUS_LEGEND.length
+              ? { background: "#e8e8f0", color: "#4b4b6b" }
+              : { background: "#f0f0f5", color: "#9898b0", opacity: 0.6 }
+            }
+          >
+            Todos
+          </button>
+          {STATUS_LEGEND.map((s) => {
+            const active = activeFilters.has(s.key);
+            return (
+              <button
+                key={s.key}
+                onClick={() => toggleFilter(s.key)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-opacity"
+                style={active
+                  ? { background: s.color + "18", color: s.color }
+                  : { background: "#f0f0f5", color: "#9898b0", opacity: 0.6 }
+                }
+              >
+                <div className="w-1.5 h-1.5 rounded-full" style={{ background: active ? s.color : "#9898b0" }} />
+                {s.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {/* Calendar view */}
       {view === "calendar" && (
         <div className={CARD}>
-          <CalendarView events={events} />
+          <CalendarView events={events} onEventClick={setSelectedId} />
         </div>
       )}
 
@@ -294,12 +343,12 @@ export default function AppointmentsPage() {
                       </span>
                     </td>
                     <td className="px-5 py-3 border-b border-dim-100">
-                      <Link
-                        href={`/appointments/${a.id}`}
+                      <button
+                        onClick={() => setSelectedId(a.id)}
                         className="text-[11px] font-semibold text-brand-600 hover:text-brand-700 opacity-0 group-hover:opacity-100 transition-opacity"
                       >
                         Ver →
-                      </Link>
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -341,6 +390,44 @@ export default function AppointmentsPage() {
           Cancelar
         </button>
       </div>
+    </Modal>
+
+    <Modal
+      open={!!selectedId}
+      onClose={() => setSelectedId(null)}
+      title={detail?.patient.fullName ?? "Marcação"}
+      description={detail ? `${detail.service?.name ?? "Consulta"} · ${format(new Date(detail.scheduledAt), "dd/MM/yyyy 'às' HH:mm")}` : undefined}
+      size="md"
+    >
+      {detailLoading || !detail ? (
+        <div className="px-6 py-8 flex flex-col gap-3 animate-pulse">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="h-4 bg-dim-100 rounded w-3/4" />
+          ))}
+        </div>
+      ) : (
+        <div className="px-6 py-5 flex flex-col divide-y divide-dim-100">
+          {[
+            { icon: <CalendarDays className="w-4 h-4" />, label: "Data e Hora", value: `${format(new Date(detail.scheduledAt), "dd/MM/yyyy")} · ${format(new Date(detail.scheduledAt), "HH:mm")} – ${format(new Date(new Date(detail.scheduledAt).getTime() + detail.durationMinutes * 60_000), "HH:mm")}` },
+            { icon: <Clock className="w-4 h-4" />, label: "Duração", value: `${detail.durationMinutes} minutos` },
+            { icon: <User className="w-4 h-4" />, label: "Paciente", value: `${detail.patient.fullName}${detail.patient.phone ? ` · ${detail.patient.phone}` : ""}` },
+            { icon: <Stethoscope className="w-4 h-4" />, label: "Médico / Profissional", value: detail.staff?.fullName ?? "—" },
+            { icon: <DoorOpen className="w-4 h-4" />, label: "Sala", value: detail.room?.name ?? "—" },
+            { icon: <FileText className="w-4 h-4" />, label: "Notas", value: detail.notes ?? "Sem notas" },
+          ].map(({ icon, label, value }) => (
+            <div key={label} className="flex items-start gap-3 py-3">
+              <div className="w-7 h-7 bg-dim-50 rounded-md flex items-center justify-center shrink-0 mt-0.5 text-dim-500">{icon}</div>
+              <div>
+                <div className="text-[10px] font-semibold uppercase tracking-[0.06em] text-dim-400 mb-0.5">{label}</div>
+                <div className="text-[13px] font-medium text-dim-900">{value}</div>
+              </div>
+            </div>
+          ))}
+          <div className="pt-3 text-[11px] text-dim-400">
+            Estado: <span className={`font-semibold px-2 py-0.5 rounded-full ml-1 ${STATUS_PILL[detail.status] ?? "bg-dim-100 text-dim-600"}`}>{STATUS_LEGEND.find((s) => s.key === detail.status)?.label ?? detail.status}</span>
+          </div>
+        </div>
+      )}
     </Modal>
     </>
   );
