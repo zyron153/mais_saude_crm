@@ -10,6 +10,8 @@ import { BillingModule } from "./modules/billing/billing.module";
 import { HealthPlansModule } from "./modules/health-plans/health-plans.module";
 import { CompaniesModule } from "./modules/companies/companies.module";
 import { DocumentsModule } from "./modules/documents/documents.module";
+import { StaffModule } from "./modules/staff/staff.module";
+import { ServicesModule } from "./modules/services/services.module";
 import { BffModule } from "./modules/bff/bff.module";
 import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
 import { RolesGuard } from "./common/guards/roles.guard";
@@ -37,6 +39,8 @@ import { RedisModule } from "./common/redis/redis.module";
     HealthPlansModule,
     CompaniesModule,
     DocumentsModule,
+    StaffModule,
+    ServicesModule,
     BffModule,
   ],
   providers: [
@@ -47,3 +51,4 @@ import { RedisModule } from "./common/redis/redis.module";
   ],
 })
 export class AppModule {}
+
