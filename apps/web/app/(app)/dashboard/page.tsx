@@ -186,7 +186,10 @@ export default function DashboardPage() {
   const [apptForm, setApptForm]       = useState({ patientId: "", serviceId: "", staffId: "", scheduledAt: "", notes: "" });
   const [apptSubmitting, setApptSubmitting] = useState(false);
   const [apptError, setApptError] = useState<string | null>(null);
-  const [patientForm, setPatientForm] = useState({ fullName: "", phone: "", email: "", gender: "female" });
+  const [patientForm, setPatientForm] = useState({ fullName: "", dateOfBirth: "", phone: "", email: "", gender: "female" });
+  const [patConsent, setPatConsent] = useState(false);
+  const [patSubmitting, setPatSubmitting] = useState(false);
+  const [patError, setPatError] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   const { data: patients } = useQuery<{ data: { id: string; fullName: string }[] }>({
@@ -207,6 +210,38 @@ export default function DashboardPage() {
 
   function setA(k: string, v: string) { setApptForm((f) => ({ ...f, [k]: v })); }
   function setP(k: string, v: string) { setPatientForm((f) => ({ ...f, [k]: v })); }
+
+  async function handlePatientSubmit() {
+    if (!patientForm.fullName.trim() || !patientForm.phone || !patientForm.dateOfBirth || !patConsent) return;
+    setPatSubmitting(true);
+    setPatError(null);
+    try {
+      const res = await fetch("/api/patients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fullName: patientForm.fullName.trim(),
+          dateOfBirth: patientForm.dateOfBirth,
+          gender: patientForm.gender,
+          phone: patientForm.phone,
+          email: patientForm.email || undefined,
+          consentGiven: true,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message ?? "Erro ao criar paciente");
+      }
+      setPatientForm({ fullName: "", dateOfBirth: "", phone: "", email: "", gender: "female" });
+      setPatConsent(false);
+      setPatientOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["patients"] });
+    } catch (e: unknown) {
+      setPatError(e instanceof Error ? e.message : "Erro desconhecido");
+    } finally {
+      setPatSubmitting(false);
+    }
+  }
 
   async function handleApptSubmit() {
     if (!apptForm.patientId || !apptForm.staffId || !apptForm.serviceId || !apptForm.scheduledAt) return;
@@ -625,15 +660,19 @@ export default function DashboardPage() {
       </div>
     </Modal>
 
-    <Modal open={patientOpen} onClose={() => setPatientOpen(false)} title="Novo Paciente">
+    <Modal open={patientOpen} onClose={() => { setPatientOpen(false); setPatError(null); }} title="Novo Paciente">
       <div className="flex flex-col gap-3.5">
         <div>
           <label className="block text-[11px] font-semibold text-dim-500 mb-1.5">Nome Completo *</label>
           <input className={inputCls} placeholder="Nome do paciente" value={patientForm.fullName} onChange={(e) => setP("fullName", e.target.value)} />
         </div>
         <div>
-          <label className="block text-[11px] font-semibold text-dim-500 mb-1.5">Telefone</label>
-          <input className={inputCls} placeholder="+238 000 0000" value={patientForm.phone} onChange={(e) => setP("phone", e.target.value)} />
+          <label className="block text-[11px] font-semibold text-dim-500 mb-1.5">Data de Nascimento *</label>
+          <input type="date" className={inputCls} value={patientForm.dateOfBirth} onChange={(e) => setP("dateOfBirth", e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-[11px] font-semibold text-dim-500 mb-1.5">Telefone * (formato: +2389912345)</label>
+          <input className={inputCls} placeholder="+2389912345" value={patientForm.phone} onChange={(e) => setP("phone", e.target.value)} />
         </div>
         <div>
           <label className="block text-[11px] font-semibold text-dim-500 mb-1.5">Email</label>
@@ -647,9 +686,20 @@ export default function DashboardPage() {
             <option value="other">Outro</option>
           </select>
         </div>
+        <label className="flex items-start gap-2.5 cursor-pointer text-[12px] text-dim-700 leading-relaxed">
+          <input type="checkbox" checked={patConsent} onChange={(e) => setPatConsent(e.target.checked)} className="mt-0.5 w-4 h-4 rounded border-dim-300 accent-brand-600 cursor-pointer shrink-0" />
+          Consentimento para recolha e tratamento de dados pessoais. <span className="text-red-500">*</span>
+        </label>
+        {patError && <p className="text-[12px] text-red-600 bg-red-50 px-3 py-2 rounded-lg">{patError}</p>}
         <div className="flex justify-end gap-2 pt-1">
-          <button onClick={() => setPatientOpen(false)} className="px-4 py-2 text-[12px] font-semibold rounded-[10px] border border-dim-200 text-dim-700 hover:bg-dim-50 transition-colors">Cancelar</button>
-          <button onClick={() => setPatientOpen(false)} disabled={!patientForm.fullName.trim()} className="px-4 py-2 text-[12px] font-semibold rounded-[10px] bg-brand-700 text-white hover:bg-brand-800 transition-colors disabled:opacity-50">Adicionar</button>
+          <button onClick={() => { setPatientOpen(false); setPatError(null); }} className="px-4 py-2 text-[12px] font-semibold rounded-[10px] border border-dim-200 text-dim-700 hover:bg-dim-50 transition-colors">Cancelar</button>
+          <button
+            onClick={handlePatientSubmit}
+            disabled={patSubmitting || !patientForm.fullName.trim() || !patientForm.phone || !patientForm.dateOfBirth || !patConsent}
+            className="px-4 py-2 text-[12px] font-semibold rounded-[10px] bg-brand-700 text-white hover:bg-brand-800 transition-colors disabled:opacity-50"
+          >
+            {patSubmitting ? "A guardar…" : "Adicionar"}
+          </button>
         </div>
       </div>
     </Modal>

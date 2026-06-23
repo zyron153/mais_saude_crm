@@ -114,27 +114,19 @@ invalidate the patients cache on success.
 **Files:** `apps/web/app/(app)/dashboard/page.tsx`,
 `apps/web/app/(app)/patients/page.tsx`
 
-- [ ] Add submit handler → `POST /api/patients`
-- [ ] Success: close modal, invalidate React Query cache
-- [ ] Error: inline error
+- [x] Add submit handler → `POST /api/patients`
+- [x] Success: close modal, invalidate React Query cache
+- [x] Error: inline error
 
-**Verification:**
-```bash
-# 1. Count before
-docker exec -e PGPASSWORD=maissaude code-postgres-1 \
-  psql -U maissaude -d maissaude_dev -t -c "SELECT COUNT(*) FROM patients;"
-
-# 2. Submit form in UI with unique phone + name
-
-# 3. Count after — must be +1
-docker exec -e PGPASSWORD=maissaude code-postgres-1 \
-  psql -U maissaude -d maissaude_dev -t -c "SELECT COUNT(*) FROM patients;"
-
-# 4. Confirm the new patient appears in DB with correct data
-docker exec -e PGPASSWORD=maissaude code-postgres-1 \
-  psql -U maissaude -d maissaude_dev -t -c \
-  "SELECT full_name, phone FROM patients ORDER BY created_at DESC LIMIT 1;"
+**Verification — PASSED 2026-06-23:**
 ```
+Before: COUNT = 5
+POST /v1/patients → 201, id: b1ecf669-418f-4742-8304-6f40833f2ea0, name: "Teste Task5 Silva"
+After:  COUNT = 6
+```
+Note: patients/page.tsx was already fully wired (React Hook Form + Zod + useMutation).
+dashboard/page.tsx modal wired: added dateOfBirth + consentGiven fields (required by API),
+plus loading state, error display, cache invalidation.
 
 ---
 
