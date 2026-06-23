@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { Plus, ChevronLeft, ChevronRight } from "lucide-react";
 import { Modal } from "../../../components/ui/modal";
@@ -182,11 +183,61 @@ const inputCls = "w-full border border-dim-200 rounded-[10px] px-3.5 py-2.5 text
 export default function DashboardPage() {
   const [apptOpen, setApptOpen]       = useState(false);
   const [patientOpen, setPatientOpen] = useState(false);
-  const [apptForm, setApptForm]       = useState({ patient: "", service: "", scheduledAt: "", notes: "" });
+  const [apptForm, setApptForm]       = useState({ patientId: "", serviceId: "", staffId: "", scheduledAt: "", notes: "" });
+  const [apptSubmitting, setApptSubmitting] = useState(false);
+  const [apptError, setApptError] = useState<string | null>(null);
   const [patientForm, setPatientForm] = useState({ fullName: "", phone: "", email: "", gender: "female" });
+  const queryClient = useQueryClient();
+
+  const { data: patients } = useQuery<{ data: { id: string; fullName: string }[] }>({
+    queryKey: ["patients-list"],
+    queryFn: () => fetch("/api/patients?limit=100").then((r) => r.json()),
+    staleTime: 60_000,
+  });
+  const { data: staffList } = useQuery<{ id: string; fullName: string }[]>({
+    queryKey: ["staff-list"],
+    queryFn: () => fetch("/api/staff").then((r) => r.json()),
+    staleTime: 60_000,
+  });
+  const { data: servicesList } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ["services-list"],
+    queryFn: () => fetch("/api/services").then((r) => r.json()),
+    staleTime: 60_000,
+  });
 
   function setA(k: string, v: string) { setApptForm((f) => ({ ...f, [k]: v })); }
   function setP(k: string, v: string) { setPatientForm((f) => ({ ...f, [k]: v })); }
+
+  async function handleApptSubmit() {
+    if (!apptForm.patientId || !apptForm.staffId || !apptForm.serviceId || !apptForm.scheduledAt) return;
+    setApptSubmitting(true);
+    setApptError(null);
+    try {
+      const res = await fetch("/api/appointments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patientId: apptForm.patientId,
+          staffId: apptForm.staffId,
+          serviceId: apptForm.serviceId,
+          scheduledAt: new Date(apptForm.scheduledAt).toISOString(),
+          notes: apptForm.notes || undefined,
+          source: "web",
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message ?? "Erro ao criar marcação");
+      }
+      setApptForm({ patientId: "", serviceId: "", staffId: "", scheduledAt: "", notes: "" });
+      setApptOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+    } catch (e: unknown) {
+      setApptError(e instanceof Error ? e.message : "Erro desconhecido");
+    } finally {
+      setApptSubmitting(false);
+    }
+  }
 
   return (
     <>
@@ -529,15 +580,28 @@ export default function DashboardPage() {
       </div>
     </div>
 
-    <Modal open={apptOpen} onClose={() => setApptOpen(false)} title="Nova Consulta">
+    <Modal open={apptOpen} onClose={() => { setApptOpen(false); setApptError(null); }} title="Nova Consulta">
       <div className="flex flex-col gap-3.5">
         <div>
           <label className="block text-[11px] font-semibold text-dim-500 mb-1.5">Paciente *</label>
-          <input className={inputCls} placeholder="Nome do paciente" value={apptForm.patient} onChange={(e) => setA("patient", e.target.value)} />
+          <select className={inputCls} value={apptForm.patientId} onChange={(e) => setA("patientId", e.target.value)}>
+            <option value="">Selecionar paciente…</option>
+            {patients?.data?.map((p) => <option key={p.id} value={p.id}>{p.fullName}</option>)}
+          </select>
         </div>
         <div>
-          <label className="block text-[11px] font-semibold text-dim-500 mb-1.5">Serviço</label>
-          <input className={inputCls} placeholder="Ex: Consulta Geral" value={apptForm.service} onChange={(e) => setA("service", e.target.value)} />
+          <label className="block text-[11px] font-semibold text-dim-500 mb-1.5">Serviço *</label>
+          <select className={inputCls} value={apptForm.serviceId} onChange={(e) => setA("serviceId", e.target.value)}>
+            <option value="">Selecionar serviço…</option>
+            {servicesList?.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-[11px] font-semibold text-dim-500 mb-1.5">Médico/a *</label>
+          <select className={inputCls} value={apptForm.staffId} onChange={(e) => setA("staffId", e.target.value)}>
+            <option value="">Selecionar médico…</option>
+            {staffList?.map((s) => <option key={s.id} value={s.id}>{s.fullName}</option>)}
+          </select>
         </div>
         <div>
           <label className="block text-[11px] font-semibold text-dim-500 mb-1.5">Data e Hora *</label>
@@ -547,9 +611,16 @@ export default function DashboardPage() {
           <label className="block text-[11px] font-semibold text-dim-500 mb-1.5">Notas</label>
           <textarea className={inputCls} rows={2} placeholder="Observações..." value={apptForm.notes} onChange={(e) => setA("notes", e.target.value)} />
         </div>
+        {apptError && <p className="text-[12px] text-red-600 bg-red-50 px-3 py-2 rounded-lg">{apptError}</p>}
         <div className="flex justify-end gap-2 pt-1">
-          <button onClick={() => setApptOpen(false)} className="px-4 py-2 text-[12px] font-semibold rounded-[10px] border border-dim-200 text-dim-700 hover:bg-dim-50 transition-colors">Cancelar</button>
-          <button onClick={() => setApptOpen(false)} disabled={!apptForm.patient.trim() || !apptForm.scheduledAt} className="px-4 py-2 text-[12px] font-semibold rounded-[10px] bg-brand-700 text-white hover:bg-brand-800 transition-colors disabled:opacity-50">Adicionar</button>
+          <button onClick={() => { setApptOpen(false); setApptError(null); }} className="px-4 py-2 text-[12px] font-semibold rounded-[10px] border border-dim-200 text-dim-700 hover:bg-dim-50 transition-colors">Cancelar</button>
+          <button
+            onClick={handleApptSubmit}
+            disabled={apptSubmitting || !apptForm.patientId || !apptForm.staffId || !apptForm.serviceId || !apptForm.scheduledAt}
+            className="px-4 py-2 text-[12px] font-semibold rounded-[10px] bg-brand-700 text-white hover:bg-brand-800 transition-colors disabled:opacity-50"
+          >
+            {apptSubmitting ? "A guardar…" : "Adicionar"}
+          </button>
         </div>
       </div>
     </Modal>

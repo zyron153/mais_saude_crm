@@ -91,15 +91,32 @@ const CARD = "bg-white rounded-[16px] border border-dim-200 shadow-[0_1px_4px_rg
 
 const inputCls = "w-full border border-dim-200 rounded-[10px] px-3.5 py-2.5 text-[13px] text-dim-900 placeholder:text-dim-400 bg-white focus:outline-none focus:border-brand-500 focus:shadow-[0_0_0_3px_rgba(19,163,163,.12)] transition-all shadow-[0_1px_2px_rgba(0,0,0,.05)]";
 
-const BLANK_APPT = { patient: "", service: "", staff: "", scheduledAt: "", notes: "" };
+const BLANK_APPT = { patientId: "", serviceId: "", staffId: "", scheduledAt: "", notes: "" };
 
 export default function AppointmentsPage() {
   const [view, setView] = useState<"calendar" | "list">("calendar");
   const [newOpen, setNewOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [form, setForm] = useState(BLANK_APPT);
-  const [localAppts, setLocalAppts] = useState<Appointment[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const queryClient = useQueryClient();
+
+  const { data: patients } = useQuery<{ data: { id: string; fullName: string }[] }>({
+    queryKey: ["patients-list"],
+    queryFn: () => fetch("/api/patients?limit=100").then((r) => r.json()),
+    staleTime: 60_000,
+  });
+  const { data: staffList } = useQuery<{ id: string; fullName: string }[]>({
+    queryKey: ["staff-list"],
+    queryFn: () => fetch("/api/staff").then((r) => r.json()),
+    staleTime: 60_000,
+  });
+  const { data: servicesList } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ["services-list"],
+    queryFn: () => fetch("/api/services").then((r) => r.json()),
+    staleTime: 60_000,
+  });
 
   const { data: detail, isLoading: detailLoading } = useQuery<AppointmentDetail>({
     queryKey: ["appointment", selectedId],
@@ -109,19 +126,35 @@ export default function AppointmentsPage() {
 
   function set(k: keyof typeof BLANK_APPT, v: string) { setForm((f) => ({ ...f, [k]: v })); }
 
-  function addAppt() {
-    if (!form.patient.trim() || !form.scheduledAt) return;
-    setLocalAppts((prev) => [{
-      id: `local-${Date.now()}`,
-      scheduledAt: form.scheduledAt,
-      durationMinutes: 30,
-      status: "pending",
-      patient: { fullName: form.patient.trim() },
-      service: { name: form.service.trim() || "Consulta Geral" },
-      staff: form.staff.trim() ? { fullName: form.staff.trim() } : undefined,
-    }, ...prev]);
-    setForm(BLANK_APPT);
-    setNewOpen(false);
+  async function addAppt() {
+    if (!form.patientId || !form.staffId || !form.serviceId || !form.scheduledAt) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const res = await fetch("/api/appointments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patientId: form.patientId,
+          staffId: form.staffId,
+          serviceId: form.serviceId,
+          scheduledAt: new Date(form.scheduledAt).toISOString(),
+          notes: form.notes || undefined,
+          source: "web",
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message ?? "Erro ao criar marcação");
+      }
+      setForm(BLANK_APPT);
+      setNewOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+    } catch (e: unknown) {
+      setSubmitError(e instanceof Error ? e.message : "Erro desconhecido");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   const now = new Date();
@@ -152,7 +185,7 @@ export default function AppointmentsPage() {
     return () => { socket.disconnect(); };
   }, [queryClient, from, to]);
 
-  const allAppts = [...(appointments ?? []), ...localAppts];
+  const allAppts = appointments ?? [];
 
   const [activeFilters, setActiveFilters] = useState<Set<string>>(
     () => new Set(STATUS_LEGEND.map((s) => s.key))
@@ -359,19 +392,34 @@ export default function AppointmentsPage() {
       )}
     </div>
 
-    <Modal open={newOpen} onClose={() => setNewOpen(false)} title="Nova Marcação" description="Agende uma nova consulta ou procedimento" size="md">
+    <Modal open={newOpen} onClose={() => { setNewOpen(false); setSubmitError(null); }} title="Nova Marcação" description="Agende uma nova consulta ou procedimento" size="md">
       <div className="px-6 py-5 grid grid-cols-2 gap-4">
         <div className="col-span-2">
           <label className="block text-[12px] font-semibold text-dim-700 mb-1.5">Paciente *</label>
-          <input value={form.patient} onChange={(e) => set("patient", e.target.value)} placeholder="Nome do paciente" className={inputCls} />
+          <select value={form.patientId} onChange={(e) => set("patientId", e.target.value)} className={inputCls}>
+            <option value="">Selecionar paciente…</option>
+            {patients?.data?.map((p) => (
+              <option key={p.id} value={p.id}>{p.fullName}</option>
+            ))}
+          </select>
         </div>
         <div>
-          <label className="block text-[12px] font-semibold text-dim-700 mb-1.5">Serviço</label>
-          <input value={form.service} onChange={(e) => set("service", e.target.value)} placeholder="Ex: Consulta Geral" className={inputCls} />
+          <label className="block text-[12px] font-semibold text-dim-700 mb-1.5">Serviço *</label>
+          <select value={form.serviceId} onChange={(e) => set("serviceId", e.target.value)} className={inputCls}>
+            <option value="">Selecionar serviço…</option>
+            {servicesList?.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
         </div>
         <div>
-          <label className="block text-[12px] font-semibold text-dim-700 mb-1.5">Médico/a</label>
-          <input value={form.staff} onChange={(e) => set("staff", e.target.value)} placeholder="Ex: Dr. Carlos Silva" className={inputCls} />
+          <label className="block text-[12px] font-semibold text-dim-700 mb-1.5">Médico/a *</label>
+          <select value={form.staffId} onChange={(e) => set("staffId", e.target.value)} className={inputCls}>
+            <option value="">Selecionar médico…</option>
+            {staffList?.map((s) => (
+              <option key={s.id} value={s.id}>{s.fullName}</option>
+            ))}
+          </select>
         </div>
         <div className="col-span-2">
           <label className="block text-[12px] font-semibold text-dim-700 mb-1.5">Data e Hora *</label>
@@ -381,12 +429,19 @@ export default function AppointmentsPage() {
           <label className="block text-[12px] font-semibold text-dim-700 mb-1.5">Notas</label>
           <textarea value={form.notes} onChange={(e) => set("notes", e.target.value)} rows={2} placeholder="Observações opcionais…" className={`${inputCls} resize-none`} />
         </div>
+        {submitError && (
+          <div className="col-span-2 text-[12px] text-red-600 bg-red-50 px-3 py-2 rounded-lg">{submitError}</div>
+        )}
       </div>
       <div className="px-6 py-4 border-t border-dim-100 flex items-center gap-3">
-        <button onClick={addAppt} className="bg-brand-700 hover:bg-brand-800 text-white font-semibold px-5 py-2.5 rounded-[10px] text-[13px] transition-colors">
-          Guardar Marcação
+        <button
+          onClick={addAppt}
+          disabled={submitting || !form.patientId || !form.staffId || !form.serviceId || !form.scheduledAt}
+          className="bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-semibold px-5 py-2.5 rounded-[10px] text-[13px] transition-colors"
+        >
+          {submitting ? "A guardar…" : "Guardar Marcação"}
         </button>
-        <button onClick={() => setNewOpen(false)} className="border border-dim-200 bg-white hover:bg-dim-50 text-dim-700 font-medium px-5 py-2.5 rounded-[10px] text-[13px] transition-colors">
+        <button onClick={() => { setNewOpen(false); setSubmitError(null); }} className="border border-dim-200 bg-white hover:bg-dim-50 text-dim-700 font-medium px-5 py-2.5 rounded-[10px] text-[13px] transition-colors">
           Cancelar
         </button>
       </div>

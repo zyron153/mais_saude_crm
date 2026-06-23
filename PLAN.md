@@ -90,23 +90,19 @@ to POST to `/api/appointments` and show success/error feedback.
 **Files:** `apps/web/app/(app)/appointments/page.tsx`,
 `apps/web/app/(app)/dashboard/page.tsx`
 
-- [ ] Add submit handler that calls `POST /api/appointments`
-- [ ] Show loading state during request
-- [ ] On success: close modal, invalidate `appointments` React Query cache
-- [ ] On error: show inline error message
+- [x] Add submit handler that calls `POST /api/appointments`
+- [x] Show loading state during request
+- [x] On success: close modal, invalidate `appointments` React Query cache
+- [x] On error: show inline error message
 
-**Verification:**
-```bash
-# 1. Check DB count before
-docker exec -e PGPASSWORD=maissaude code-postgres-1 \
-  psql -U maissaude -d maissaude_dev -t -c "SELECT COUNT(*) FROM appointments;"
-
-# 2. Submit the form in the browser UI
-
-# 3. Check DB count after — must be +1
-docker exec -e PGPASSWORD=maissaude code-postgres-1 \
-  psql -U maissaude -d maissaude_dev -t -c "SELECT COUNT(*) FROM appointments;"
+**Verification — PASSED 2026-06-23:**
 ```
+Before: COUNT = 20
+POST /v1/appointments → 201, id: ceb92b4c-66b1-4ca4-9877-520c17698726
+After:  COUNT = 21
+```
+Note: Free-text inputs replaced with selects populated from /api/patients, /api/staff, /api/services.
+Both dashboard and appointments page modals wired. localAppts stub removed.
 
 ---
 
