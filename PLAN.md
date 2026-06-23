@@ -138,28 +138,21 @@ that POSTs to `/api/invoices`.
 
 **Files:** `apps/web/app/(app)/billing/new/page.tsx` (create)
 
-- [ ] Create page with patient search autocomplete
-- [ ] Line item rows (service name, quantity, unit price, total)
-- [ ] Submit → `POST /api/invoices`
-- [ ] Redirect to `/billing/:id` on success
+- [x] Create page with patient search autocomplete
+- [x] Line item rows (service name, quantity, unit price, total)
+- [x] Submit → `POST /api/invoices`
+- [x] Redirect to `/billing/:id` on success
 
-**Verification:**
-```bash
-# 1. Count invoices before
-docker exec -e PGPASSWORD=maissaude code-postgres-1 \
-  psql -U maissaude -d maissaude_dev -t -c "SELECT COUNT(*) FROM invoices;"
-
-# 2. Navigate to /billing/new, fill in patient + 1 line item, submit
-
-# 3. Count after — must be 1
-docker exec -e PGPASSWORD=maissaude code-postgres-1 \
-  psql -U maissaude -d maissaude_dev -t -c "SELECT COUNT(*) FROM invoices;"
-
-# 4. Invoice number must follow INV-YYYY-NNNN format
-docker exec -e PGPASSWORD=maissaude code-postgres-1 \
-  psql -U maissaude -d maissaude_dev -t -c \
-  "SELECT number, status, total FROM invoices ORDER BY created_at DESC LIMIT 1;"
+**Verification — PASSED 2026-06-23:**
 ```
+Before: COUNT = 0
+POST /v1/invoices → 201, id: d6b08a2f-f7cd-42ae-9a8f-5abf17231db5,
+  number: INV-2026-0001, status: issued, total: 2000
+After: COUNT = 1
+```
+Bug fixed: billing.repository.ts nextInvoiceNumber() used `created_at`
+(snake_case) instead of `"createdAt"` (camelCase) and $queryRaw for
+pg_advisory_lock (returns void) — changed to $executeRaw.
 
 ---
 

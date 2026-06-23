@@ -10,14 +10,14 @@ export class BillingRepository {
     const year = new Date().getFullYear();
     // Session-level advisory lock keyed on year prevents duplicate numbers under concurrent load.
     // Lock is released automatically at transaction end or session close.
+    await this.prisma.$executeRaw`SELECT pg_advisory_lock(${year}::bigint)`;
     const result = await this.prisma.$queryRaw<[{ next_seq: bigint }]>`
-      SELECT pg_advisory_lock(${year}::bigint),
-             (SELECT COUNT(*) FROM invoices
-              WHERE created_at >= ${new Date(`${year}-01-01`)}
-                AND created_at <  ${new Date(`${year + 1}-01-01`)}) + 1 AS next_seq
+      SELECT (SELECT COUNT(*) FROM invoices
+              WHERE "createdAt" >= ${new Date(`${year}-01-01`)}
+                AND "createdAt" <  ${new Date(`${year + 1}-01-01`)}) + 1 AS next_seq
     `;
     const seq = String(Number(result[0].next_seq)).padStart(4, "0");
-    await this.prisma.$queryRaw`SELECT pg_advisory_unlock(${year}::bigint)`;
+    await this.prisma.$executeRaw`SELECT pg_advisory_unlock(${year}::bigint)`;
     return `INV-${year}-${seq}`;
   }
 
