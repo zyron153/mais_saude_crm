@@ -163,9 +163,13 @@ pre-fills the patient form and PATCHes `/api/patients/:id`.
 
 **Files:** `apps/web/app/(app)/patients/[id]/edit/page.tsx` (create)
 
-- [ ] Pre-fill form with existing patient data from `/api/patients/:id`
-- [ ] Submit → `PATCH /api/patients/:id`
-- [ ] Redirect back to `/patients/:id` on success
+- [x] Pre-fill form with existing patient data from `/api/patients/:id`
+- [x] Submit → `PATCH /api/patients/:id`
+- [x] Redirect back to `/patients/:id` on success
+- [x] "Editar dados" button added to `patients/[id]/page.tsx`
+
+Note: TypeScript passes clean (`pnpm --filter @cms/web exec tsc --noEmit` → 0 errors).
+UI verification requires Docker + API running (were down at time of task). Run DB check below once services are up.
 
 **Verification:**
 ```bash

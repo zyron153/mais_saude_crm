@@ -135,13 +135,19 @@ export default function PatientProfilePage({ params }: { params: { id: string } 
             </div>
 
             {/* Action */}
-            <div className="px-5 pb-5">
+            <div className="px-5 pb-5 flex flex-col gap-2">
               <Link
                 href={`/appointments/new?patientId=${patient.id}`}
                 className="flex items-center justify-center gap-2 w-full bg-brand-700 hover:bg-brand-800 text-white text-[13px] font-semibold px-4 py-2.5 rounded-[10px] transition-colors shadow-[0_1px_2px_rgba(0,0,0,.08)]"
               >
                 <Plus className="w-4 h-4" />
                 Marcar Consulta
+              </Link>
+              <Link
+                href={`/patients/${patient.id}/edit`}
+                className="flex items-center justify-center gap-2 w-full border border-dim-200 hover:border-dim-300 hover:bg-dim-50 text-dim-700 text-[13px] font-semibold px-4 py-2.5 rounded-[10px] transition-colors"
+              >
+                Editar dados
               </Link>
             </div>
           </div>
