@@ -291,14 +291,20 @@ docker exec -e PGPASSWORD=maissaude code-postgres-1 \
 ### 11. PDF receipt generation
 
 **What:** `billing.service.ts:getReceiptUrl()` returns a placeholder. Implement PDF generation
-with `@react-pdf/renderer`, upload to Cloudflare R2, return a signed URL.
+with `pdfkit` (lighter than @react-pdf/renderer — no React in the backend), upload to Cloudflare R2, return a signed URL.
 
 **Files:**
 - `apps/api/src/common/services/r2.service.ts` (create)
-- `apps/api/src/modules/billing/billing.service.ts` (modify `getReceiptUrl`)
+- `apps/api/src/modules/billing/receipt.pdf.ts` (create — pdfkit invoice layout)
+- `apps/api/src/modules/billing/billing.module.ts` (add R2Service to providers)
+- `apps/api/src/modules/billing/billing.service.ts` (inject R2Service, rewrite getReceiptUrl)
 
-- [ ] `R2Service` — upload buffer, generate signed URL (1h expiry)
-- [ ] `getReceiptUrl` — generate PDF, upload, return signed URL, store `pdfR2Key` on invoice
+- [x] `R2Service` — upload buffer, signed URL (1h), detects placeholder creds and falls back to static URL
+- [x] `getReceiptUrl` — generates PDF, uploads, caches `pdfR2Key`, returns signed URL
+
+Note: TypeScript passes clean. Runtime verification requires real R2 credentials in `.env`
+(current `.env` has placeholder values). Set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID,
+R2_SECRET_ACCESS_KEY to real Cloudflare R2 creds to enable.
 
 **Verification:**
 ```bash

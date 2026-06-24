@@ -4,6 +4,8 @@ import {
   BadRequestException,
 } from "@nestjs/common";
 import { BillingRepository } from "./billing.repository";
+import { R2Service } from "../../common/services/r2.service";
+import { generateReceiptPdf } from "./receipt.pdf";
 import { InvoiceStatus } from "@cms/database";
 import {
   CreateInvoiceDto,
@@ -13,7 +15,10 @@ import {
 
 @Injectable()
 export class BillingService {
-  constructor(private readonly repo: BillingRepository) {}
+  constructor(
+    private readonly repo: BillingRepository,
+    private readonly r2: R2Service,
+  ) {}
 
   async create(dto: CreateInvoiceDto) {
     let subtotal = 0;
@@ -153,12 +158,37 @@ export class BillingService {
   }
 
   async getReceiptUrl(invoiceId: string): Promise<{ url: string }> {
-    const invoice = await this.repo.findByIdLite(invoiceId);
+    const invoice = await this.repo.findById(invoiceId);
     if (!invoice) throw new NotFoundException(`Invoice ${invoiceId} not found`);
-    // Phase 1: PDF generation + R2 upload stubbed — returns placeholder
-    // Phase 2: implement with @react-pdf/renderer + AWS SDK v3 S3Client
-    return {
-      url: `https://files.maissaudecv.com/receipts/${invoice.invoiceNumber}.pdf`,
-    };
+
+    if (!this.r2.isConfigured()) {
+      return { url: `https://files.maissaudecv.com/receipts/${invoice.invoiceNumber}.pdf` };
+    }
+
+    if (invoice.pdfR2Key) {
+      return { url: await this.r2.signedUrl(invoice.pdfR2Key) };
+    }
+
+    const pdf = await generateReceiptPdf({
+      invoiceNumber: invoice.invoiceNumber,
+      issuedAt: invoice.issuedAt,
+      patient: invoice.patient,
+      items: invoice.items.map((item) => ({
+        description: item.description,
+        quantity: item.quantity,
+        unitPrice: Number(item.unitPrice),
+        total: Number(item.total),
+      })),
+      subtotal: Number(invoice.subtotal),
+      total: Number(invoice.total),
+      amountPaid: Number(invoice.amountPaid),
+      status: invoice.status,
+    });
+
+    const key = `receipts/${invoice.invoiceNumber}.pdf`;
+    await this.r2.upload(key, pdf, "application/pdf");
+    await this.repo.update(invoiceId, { pdfR2Key: key });
+
+    return { url: await this.r2.signedUrl(key) };
   }
 }
