@@ -22,6 +22,10 @@ out/
 # Test coverage
 coverage/
 
+# Playwright
+playwright-report/
+test-results/
+
 # Logs
 *.log
 npm-debug.log*
