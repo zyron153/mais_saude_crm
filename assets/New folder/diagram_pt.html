@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html { width:1600px; height:1000px; overflow:hidden; }
+body {
+  width:1600px; height:1000px; overflow:hidden;
+  background:#F0F4F8;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',Arial,sans-serif;
+  color:#1E293B;
+}
+
+/* ── HEADER ── */
+.header {
+  background:linear-gradient(135deg,#0A6B6B 0%,#0D8080 60%,#13A3A3 100%);
+  color:#fff; padding:18px 36px;
+  display:flex; align-items:center; justify-content:space-between;
+}
+.header-left { display:flex; align-items:center; gap:16px; }
+.header-icon {
+  width:52px; height:52px; background:rgba(255,255,255,.15); border-radius:14px;
+  display:flex; align-items:center; justify-content:center; font-size:26px;
+}
+.header-title { font-size:24px; font-weight:800; letter-spacing:-.3px; }
+.header-sub { font-size:13px; opacity:.8; margin-top:2px; }
+.badge {
+  background:rgba(255,255,255,.2); border:1px solid rgba(255,255,255,.35);
+  border-radius:8px; padding:6px 14px; font-size:12px; font-weight:600;
+  display:flex; align-items:center; gap:6px;
+}
+.badge-dot { width:7px; height:7px; border-radius:50%; background:#4ADE80; }
+
+/* ── MAIN GRID ── */
+.main {
+  padding:20px 28px 16px;
+  display:grid;
+  grid-template-columns:1fr 260px;
+  gap:20px;
+  height:calc(100% - 88px);
+}
+
+/* ── FLOW COLUMN ── */
+.flow { display:flex; flex-direction:column; gap:0; }
+
+.layer {
+  background:#fff; border-radius:14px;
+  border:1px solid #E2E8F0;
+  box-shadow:0 1px 4px rgba(0,0,0,.06),0 0 0 1px rgba(0,0,0,.02);
+  overflow:hidden;
+}
+
+.layer-head {
+  display:flex; align-items:center; gap:10px;
+  padding:10px 16px;
+  border-bottom:1px solid #F1F5F9;
+}
+.layer-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+.layer-name { font-size:11px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; }
+.layer-tech { font-size:10px; color:#94A3B8; margin-left:auto; font-weight:500; }
+
+.layer-body { padding:10px 16px 12px; display:flex; gap:8px; flex-wrap:wrap; align-items:flex-start; }
+.layer-desc { padding:0 16px 11px; font-size:10.5px; color:#64748B; line-height:1.5; }
+
+.chip {
+  border-radius:8px; padding:5px 11px;
+  font-size:11px; font-weight:600; white-space:nowrap;
+  display:flex; align-items:center; gap:5px;
+}
+.chip-icon { font-size:12px; }
+
+.arrow-row {
+  display:flex; align-items:center; justify-content:center; gap:24px;
+  padding:5px 0;
+}
+.arrow-label {
+  font-size:10px; font-weight:600; color:#94A3B8; letter-spacing:.04em;
+  display:flex; align-items:center; gap:5px;
+}
+.arrow-line {
+  width:1px; height:26px; background:linear-gradient(#CBD5E1,#94A3B8);
+  margin:0 auto;
+}
+.arrow-head {
+  width:0; height:0;
+  border-left:5px solid transparent;
+  border-right:5px solid transparent;
+  border-top:7px solid #94A3B8;
+  margin:0 auto;
+}
+.arrow-wrap { display:flex; flex-direction:column; align-items:center; }
+
+/* COLORS */
+.c-teal   { background:#0D8080; }
+.c-indigo { background:#4F46E5; }
+.c-emerald{ background:#059669; }
+.c-amber  { background:#D97706; }
+.c-slate  { background:#475569; }
+
+.bg-teal   { background:#F0FDFA; color:#0D8080; }
+.bg-indigo { background:#EEF2FF; color:#4338CA; }
+.bg-emerald{ background:#ECFDF5; color:#065F46; }
+.bg-amber  { background:#FFFBEB; color:#92400E; }
+.bg-slate  { background:#F8FAFC; color:#475569; }
+.bg-gray   { background:#F1F5F9; color:#475569; }
+.bg-rose   { background:#FFF1F2; color:#9F1239; }
+.bg-violet { background:#F5F3FF; color:#5B21B6; }
+.bg-cyan   { background:#ECFEFF; color:#164E63; }
+
+/* ── SIDEBAR ── */
+.sidebar { display:flex; flex-direction:column; gap:14px; }
+
+.side-card {
+  background:#fff; border-radius:14px;
+  border:1px solid #E2E8F0;
+  box-shadow:0 1px 4px rgba(0,0,0,.06);
+  overflow:hidden;
+}
+.side-head {
+  padding:10px 14px; border-bottom:1px solid #F1F5F9;
+  font-size:10.5px; font-weight:800; text-transform:uppercase;
+  letter-spacing:.07em; color:#64748B;
+  display:flex; align-items:center; gap:7px;
+}
+.side-body { padding:12px 14px; display:flex; flex-direction:column; gap:7px; }
+
+.phase-row { display:flex; align-items:flex-start; gap:8px; }
+.phase-badge {
+  border-radius:6px; padding:3px 8px; font-size:10px; font-weight:700;
+  white-space:nowrap; flex-shrink:0;
+}
+.phase-done  { background:#ECFDF5; color:#065F46; }
+.phase-prog  { background:#EFF6FF; color:#1D4ED8; }
+.phase-plan  { background:#F8FAFC; color:#64748B; }
+.phase-text  { font-size:11px; color:#475569; line-height:1.45; padding-top:1px; }
+
+.pkg-row { display:flex; align-items:center; gap:7px; padding:4px 0; border-bottom:1px solid #F8FAFC; }
+.pkg-row:last-child { border:none; }
+.pkg-name { font-size:11px; font-weight:700; color:#0D8080; font-family:monospace; }
+.pkg-desc { font-size:10.5px; color:#64748B; }
+
+.stack-row { display:flex; align-items:center; gap:7px; margin-bottom:4px; }
+.stack-label { font-size:11px; color:#475569; }
+.stack-val { font-size:11px; font-weight:600; color:#1E293B; }
+/* compact overrides — PT strings are longer */
+.header { padding:13px 28px; }
+.header-icon { width:44px; height:44px; font-size:22px; }
+.header-title { font-size:21px; }
+.header-sub { font-size:12px; }
+.main { padding:12px 22px 10px; gap:14px; height:calc(100% - 80px); }
+.layer-head { padding:7px 13px; }
+.layer-body { padding:7px 13px 8px; gap:6px; }
+.layer-desc { padding:0 13px 7px; font-size:10px; }
+.chip { padding:4px 9px; font-size:10px; }
+.chip-icon { font-size:11px; }
+.arrow-line { height:16px; }
+.arrow-wrap { padding:1px 0; }
+.arrow-row { padding:2px 0; }
+.side-head { padding:7px 12px; font-size:10px; }
+.side-body { padding:9px 12px; gap:5px; }
+.sidebar { gap:9px; }
+.phase-row { gap:6px; }
+.phase-text { font-size:10.5px; }
+.phase-badge { font-size:9.5px; padding:2px 7px; }
+.pkg-row { padding:3px 0; }
+.pkg-name { font-size:10.5px; }
+.pkg-desc { font-size:9.5px; }
+.stack-row { margin-bottom:2px; }
+.stack-label,.stack-val { font-size:10.5px; }
+</style>
+</head>
+<body>
+
+<!-- CABEÇALHO -->
+<div class="header">
+  <div class="header-left">
+    <div class="header-icon">🏥</div>
+    <div>
+      <div class="header-title">Clínica Mais Saúde 360</div>
+      <div class="header-sub">Sistema ERP de Saúde · Visão Geral da Arquitetura</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:10px">
+    <div class="badge"><div class="badge-dot"></div>Fase 1 Ativa</div>
+    <div class="badge" style="opacity:.7">Fase 2 Em Progresso</div>
+    <div class="badge" style="opacity:.5">Fase 3+ Planeada</div>
+  </div>
+</div>
+
+<!-- PRINCIPAL -->
+<div class="main">
+
+  <!-- COLUNA DE FLUXO -->
+  <div class="flow">
+
+    <!-- CLIENTE -->
+    <div class="layer">
+      <div class="layer-head">
+        <div class="layer-dot c-slate"></div>
+        <div class="layer-name" style="color:#475569">Camada de Cliente</div>
+        <div class="layer-tech">Utilizadores finais e navegadores</div>
+      </div>
+      <div class="layer-body" style="padding:9px 16px 10px">
+        <div class="chip bg-gray"><span class="chip-icon">🌐</span>Navegador Web (Chrome / Firefox / Edge)</div>
+        <div class="chip bg-gray" style="opacity:.55"><span class="chip-icon">📱</span>Aplicação Móvel — React Native / Expo (Fase 2+)</div>
+      </div>
+    </div>
+
+    <div class="arrow-wrap"><div class="arrow-line"></div><div class="arrow-head"></div></div>
+
+    <!-- FRONTEND -->
+    <div class="layer">
+      <div class="layer-head">
+        <div class="layer-dot c-teal"></div>
+        <div class="layer-name" style="color:#0D8080">Frontend · Portal Web</div>
+        <div class="layer-tech">Next.js 15 · React 19 · App Router · TypeScript</div>
+      </div>
+      <div class="layer-body">
+        <div class="chip bg-teal"><span class="chip-icon">📊</span>Painel Principal</div>
+        <div class="chip bg-teal"><span class="chip-icon">📅</span>Agendamentos</div>
+        <div class="chip bg-teal"><span class="chip-icon">👤</span>Pacientes</div>
+        <div class="chip bg-teal"><span class="chip-icon">💰</span>Faturação</div>
+        <div class="chip bg-teal"><span class="chip-icon">👨‍⚕️</span>Equipa</div>
+        <div class="chip bg-teal"><span class="chip-icon">🏥</span>Planos de Saúde</div>
+        <div class="chip bg-teal" style="opacity:.65"><span class="chip-icon">🔬</span>Exames</div>
+        <div class="chip bg-teal" style="opacity:.65"><span class="chip-icon">📋</span>Registos Clínicos</div>
+        <div class="chip bg-teal" style="opacity:.65"><span class="chip-icon">🚗</span>Visitas Domiciliárias</div>
+        <div class="chip bg-teal" style="opacity:.65"><span class="chip-icon">📈</span>Análises</div>
+        <div class="chip bg-teal" style="opacity:.65"><span class="chip-icon">💬</span>WhatsApp</div>
+      </div>
+      <div class="layer-desc">
+        React Query (TanStack v5) · Zustand · FullCalendar · Tailwind CSS · shadcn/ui · Cliente Socket.io
+      </div>
+    </div>
+
+    <div class="arrow-wrap">
+      <div class="arrow-row">
+        <div class="arrow-label">⬇ REST /api/*</div>
+        <div class="arrow-label">⟷ WebSocket</div>
+      </div>
+      <div class="arrow-head" style="margin-top:-2px"></div>
+    </div>
+
+    <!-- BACKEND -->
+    <div class="layer">
+      <div class="layer-head">
+        <div class="layer-dot c-indigo"></div>
+        <div class="layer-name" style="color:#4338CA">API Backend</div>
+        <div class="layer-tech">NestJS 10 · TypeScript · Prisma 6 ORM · BullMQ · Socket.io</div>
+      </div>
+      <div class="layer-body">
+        <div class="chip bg-indigo"><span class="chip-icon">📅</span>Agendamentos</div>
+        <div class="chip bg-indigo"><span class="chip-icon">👤</span>Pacientes</div>
+        <div class="chip bg-indigo"><span class="chip-icon">💰</span>Faturação</div>
+        <div class="chip bg-indigo"><span class="chip-icon">🏥</span>Planos de Saúde</div>
+        <div class="chip bg-indigo"><span class="chip-icon">🏢</span>Empresas</div>
+        <div class="chip bg-indigo"><span class="chip-icon">📄</span>Documentos</div>
+        <div class="chip bg-indigo"><span class="chip-icon">🔗</span>BFF</div>
+        <div class="chip bg-violet"><span class="chip-icon">⚡</span>Filas BullMQ</div>
+        <div class="chip bg-cyan"><span class="chip-icon">🔌</span>Socket.io /calendar</div>
+        <div class="chip bg-gray"><span class="chip-icon">🔐</span>Guarda de Auth (JWT)</div>
+        <div class="chip bg-gray"><span class="chip-icon">📝</span>Interceptor de Auditoria</div>
+      </div>
+      <div class="layer-desc">
+        Controlo de acesso por função (RBAC) · Validação de pedidos · Registo de auditoria · Documentação Swagger
+      </div>
+    </div>
+
+    <div class="arrow-wrap">
+      <div class="arrow-row">
+        <div class="arrow-label">⬇ Prisma ORM</div>
+        <div class="arrow-label">⬇ BullMQ / ioredis</div>
+      </div>
+      <div class="arrow-head" style="margin-top:-2px"></div>
+    </div>
+
+    <!-- DATA -->
+    <div class="layer">
+      <div class="layer-head">
+        <div class="layer-dot c-emerald"></div>
+        <div class="layer-name" style="color:#065F46">Camada de Dados</div>
+        <div class="layer-tech">Docker Compose (dev) · Serviços geridos (prod)</div>
+      </div>
+      <div class="layer-body">
+        <div class="chip bg-emerald"><span class="chip-icon">🐘</span>PostgreSQL 16 — Base de Dados Principal · 12+ tabelas</div>
+        <div class="chip bg-emerald"><span class="chip-icon">🔴</span>Redis 7 — Cache · Filas de Tarefas · Sessões</div>
+      </div>
+      <div class="layer-desc">
+        Tabelas: agendamentos · pacientes · equipa · faturas · planos_saude · empresas · salas · disponibilidade · serviços · log_auditoria · …
+      </div>
+    </div>
+
+    <div class="arrow-wrap"><div class="arrow-line"></div><div class="arrow-head"></div></div>
+
+    <!-- EXTERNAL + INFRA row -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <!-- EXTERNAL -->
+      <div class="layer">
+        <div class="layer-head">
+          <div class="layer-dot c-amber"></div>
+          <div class="layer-name" style="color:#92400E">Serviços Externos</div>
+        </div>
+        <div class="layer-body" style="flex-direction:column;gap:6px">
+          <div class="chip bg-amber"><span class="chip-icon">🔑</span>Keycloak — Autenticação · RS256 JWT</div>
+          <div class="chip bg-amber" style="opacity:.65"><span class="chip-icon">💬</span>Meta Cloud API — WhatsApp (Fase 2)</div>
+          <div class="chip bg-amber" style="opacity:.65"><span class="chip-icon">☁️</span>Cloudflare R2 — Armazenamento de Ficheiros</div>
+        </div>
+      </div>
+      <!-- INFRASTRUCTURE -->
+      <div class="layer">
+        <div class="layer-head">
+          <div class="layer-dot c-slate"></div>
+          <div class="layer-name" style="color:#475569">Infraestrutura</div>
+        </div>
+        <div class="layer-body" style="flex-direction:column;gap:6px">
+          <div class="chip bg-gray"><span class="chip-icon">🐳</span>Docker Compose — Ambiente de desenvolvimento</div>
+          <div class="chip bg-gray"><span class="chip-icon">☸️</span>Kubernetes — Prod · Hetzner EU / AWS</div>
+          <div class="chip bg-gray"><span class="chip-icon">⚙️</span>GitHub Actions → GHCR → Deploy Contínuo</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /flow -->
+
+  <!-- BARRA LATERAL -->
+  <div class="sidebar">
+
+    <!-- MONOREPO -->
+    <div class="side-card">
+      <div class="side-head">📦 Monorepo · Turborepo + pnpm</div>
+      <div class="side-body" style="gap:10px">
+        <div>
+          <div style="font-size:10px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Aplicações</div>
+          <div class="pkg-row"><div class="pkg-name">apps/api</div><div class="pkg-desc">Backend NestJS</div></div>
+          <div class="pkg-row"><div class="pkg-name">apps/web</div><div class="pkg-desc">Portal Next.js</div></div>
+          <div class="pkg-row" style="opacity:.5"><div class="pkg-name">apps/mobile</div><div class="pkg-desc">Fase 2+</div></div>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Pacotes Partilhados</div>
+          <div class="pkg-row">
+            <div>
+              <div class="pkg-name">@cms/database</div>
+              <div class="pkg-desc" style="font-size:10px">Schema Prisma + seed</div>
+            </div>
+          </div>
+          <div class="pkg-row">
+            <div>
+              <div class="pkg-name">@cms/types</div>
+              <div class="pkg-desc" style="font-size:10px">Schemas Zod + tipos TS</div>
+            </div>
+          </div>
+          <div class="pkg-row">
+            <div>
+              <div class="pkg-name">@cms/config</div>
+              <div class="pkg-desc" style="font-size:10px">tsconfig · ESLint · Tailwind</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FASES -->
+    <div class="side-card">
+      <div class="side-head">🗺️ Fases de Entrega</div>
+      <div class="side-body">
+        <div class="phase-row">
+          <div class="phase-badge phase-done">✅ Fase 1</div>
+          <div class="phase-text">Agendamentos, CRM de Pacientes, Faturação</div>
+        </div>
+        <div class="phase-row">
+          <div class="phase-badge phase-prog">🔄 Fase 2</div>
+          <div class="phase-text">Bot WhatsApp, Planos de Saúde, Portal de Exames</div>
+        </div>
+        <div class="phase-row">
+          <div class="phase-badge phase-plan">📋 Fase 3</div>
+          <div class="phase-text">Análises, Registos Médicos, Visitas Domiciliárias</div>
+        </div>
+        <div class="phase-row">
+          <div class="phase-badge phase-plan">📋 Fase 4+</div>
+          <div class="phase-text">App Móvel, Prontuário Eletrónico, Agendamento com IA</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STACK TÉCNICA -->
+    <div class="side-card">
+      <div class="side-head">⚙️ Stack Tecnológica</div>
+      <div class="side-body" style="gap:5px">
+        <div class="stack-row"><div class="stack-label" style="width:70px">Runtime</div><div class="stack-val">Node.js 22 · TypeScript 5</div></div>
+        <div class="stack-row"><div class="stack-label" style="width:70px">Autenticação</div><div class="stack-val">Keycloak · RS256 JWT</div></div>
+        <div class="stack-row"><div class="stack-label" style="width:70px">ORM</div><div class="stack-val">Prisma 6</div></div>
+        <div class="stack-row"><div class="stack-label" style="width:70px">Filas</div><div class="stack-val">BullMQ + Redis 7</div></div>
+        <div class="stack-row"><div class="stack-label" style="width:70px">Tempo Real</div><div class="stack-val">Socket.io</div></div>
+        <div class="stack-row"><div class="stack-label" style="width:70px">Armazenam.</div><div class="stack-val">Cloudflare R2</div></div>
+        <div class="stack-row"><div class="stack-label" style="width:70px">CI/CD</div><div class="stack-val">GitHub Actions</div></div>
+      </div>
+    </div>
+
+  </div><!-- /barra lateral -->
+</div><!-- /principal -->
+</body>
+</html>

@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  width:1600px; height:1000px; overflow:hidden;
+  background:#F0F4F8;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',Arial,sans-serif;
+  color:#1E293B;
+}
+
+/* ── HEADER ── */
+.header {
+  background:linear-gradient(135deg,#0A6B6B 0%,#0D8080 60%,#13A3A3 100%);
+  color:#fff; padding:18px 36px;
+  display:flex; align-items:center; justify-content:space-between;
+}
+.header-left { display:flex; align-items:center; gap:16px; }
+.header-icon {
+  width:52px; height:52px; background:rgba(255,255,255,.15); border-radius:14px;
+  display:flex; align-items:center; justify-content:center; font-size:26px;
+}
+.header-title { font-size:24px; font-weight:800; letter-spacing:-.3px; }
+.header-sub { font-size:13px; opacity:.8; margin-top:2px; }
+.badge {
+  background:rgba(255,255,255,.2); border:1px solid rgba(255,255,255,.35);
+  border-radius:8px; padding:6px 14px; font-size:12px; font-weight:600;
+  display:flex; align-items:center; gap:6px;
+}
+.badge-dot { width:7px; height:7px; border-radius:50%; background:#4ADE80; }
+
+/* ── MAIN GRID ── */
+.main {
+  padding:20px 28px 16px;
+  display:grid;
+  grid-template-columns:1fr 260px;
+  gap:20px;
+  height:calc(100% - 88px);
+}
+
+/* ── FLOW COLUMN ── */
+.flow { display:flex; flex-direction:column; gap:0; }
+
+.layer {
+  background:#fff; border-radius:14px;
+  border:1px solid #E2E8F0;
+  box-shadow:0 1px 4px rgba(0,0,0,.06),0 0 0 1px rgba(0,0,0,.02);
+  overflow:hidden;
+}
+
+.layer-head {
+  display:flex; align-items:center; gap:10px;
+  padding:10px 16px;
+  border-bottom:1px solid #F1F5F9;
+}
+.layer-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+.layer-name { font-size:11px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; }
+.layer-tech { font-size:10px; color:#94A3B8; margin-left:auto; font-weight:500; }
+
+.layer-body { padding:10px 16px 12px; display:flex; gap:8px; flex-wrap:wrap; align-items:flex-start; }
+.layer-desc { padding:0 16px 11px; font-size:10.5px; color:#64748B; line-height:1.5; }
+
+.chip {
+  border-radius:8px; padding:5px 11px;
+  font-size:11px; font-weight:600; white-space:nowrap;
+  display:flex; align-items:center; gap:5px;
+}
+.chip-icon { font-size:12px; }
+
+.arrow-row {
+  display:flex; align-items:center; justify-content:center; gap:24px;
+  padding:5px 0;
+}
+.arrow-label {
+  font-size:10px; font-weight:600; color:#94A3B8; letter-spacing:.04em;
+  display:flex; align-items:center; gap:5px;
+}
+.arrow-line {
+  width:1px; height:26px; background:linear-gradient(#CBD5E1,#94A3B8);
+  margin:0 auto;
+}
+.arrow-head {
+  width:0; height:0;
+  border-left:5px solid transparent;
+  border-right:5px solid transparent;
+  border-top:7px solid #94A3B8;
+  margin:0 auto;
+}
+.arrow-wrap { display:flex; flex-direction:column; align-items:center; }
+
+/* COLORS */
+.c-teal   { background:#0D8080; }
+.c-indigo { background:#4F46E5; }
+.c-emerald{ background:#059669; }
+.c-amber  { background:#D97706; }
+.c-slate  { background:#475569; }
+
+.bg-teal   { background:#F0FDFA; color:#0D8080; }
+.bg-indigo { background:#EEF2FF; color:#4338CA; }
+.bg-emerald{ background:#ECFDF5; color:#065F46; }
+.bg-amber  { background:#FFFBEB; color:#92400E; }
+.bg-slate  { background:#F8FAFC; color:#475569; }
+.bg-gray   { background:#F1F5F9; color:#475569; }
+.bg-rose   { background:#FFF1F2; color:#9F1239; }
+.bg-violet { background:#F5F3FF; color:#5B21B6; }
+.bg-cyan   { background:#ECFEFF; color:#164E63; }
+
+/* ── SIDEBAR ── */
+.sidebar { display:flex; flex-direction:column; gap:14px; }
+
+.side-card {
+  background:#fff; border-radius:14px;
+  border:1px solid #E2E8F0;
+  box-shadow:0 1px 4px rgba(0,0,0,.06);
+  overflow:hidden;
+}
+.side-head {
+  padding:10px 14px; border-bottom:1px solid #F1F5F9;
+  font-size:10.5px; font-weight:800; text-transform:uppercase;
+  letter-spacing:.07em; color:#64748B;
+  display:flex; align-items:center; gap:7px;
+}
+.side-body { padding:12px 14px; display:flex; flex-direction:column; gap:7px; }
+
+.phase-row { display:flex; align-items:flex-start; gap:8px; }
+.phase-badge {
+  border-radius:6px; padding:3px 8px; font-size:10px; font-weight:700;
+  white-space:nowrap; flex-shrink:0;
+}
+.phase-done  { background:#ECFDF5; color:#065F46; }
+.phase-prog  { background:#EFF6FF; color:#1D4ED8; }
+.phase-plan  { background:#F8FAFC; color:#64748B; }
+.phase-text  { font-size:11px; color:#475569; line-height:1.45; padding-top:1px; }
+
+.pkg-row { display:flex; align-items:center; gap:7px; padding:4px 0; border-bottom:1px solid #F8FAFC; }
+.pkg-row:last-child { border:none; }
+.pkg-name { font-size:11px; font-weight:700; color:#0D8080; font-family:monospace; }
+.pkg-desc { font-size:10.5px; color:#64748B; }
+
+.stack-row { display:flex; align-items:center; gap:7px; margin-bottom:4px; }
+.stack-label { font-size:11px; color:#475569; }
+.stack-val { font-size:11px; font-weight:600; color:#1E293B; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-left">
+    <div class="header-icon">🏥</div>
+    <div>
+      <div class="header-title">Clínica Mais Saúde 360</div>
+      <div class="header-sub">Healthcare ERP · Full-Stack Architecture Overview</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:10px">
+    <div class="badge"><div class="badge-dot"></div>Phase 1 Live</div>
+    <div class="badge" style="opacity:.7">Phase 2 In Progress</div>
+    <div class="badge" style="opacity:.5">Phase 3+ Planned</div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- FLOW COLUMN -->
+  <div class="flow">
+
+    <!-- CLIENT -->
+    <div class="layer">
+      <div class="layer-head">
+        <div class="layer-dot c-slate"></div>
+        <div class="layer-name" style="color:#475569">Client Layer</div>
+        <div class="layer-tech">End users & browsers</div>
+      </div>
+      <div class="layer-body" style="padding:9px 16px 10px">
+        <div class="chip bg-gray"><span class="chip-icon">🌐</span>Web Browser (Chrome / Firefox / Edge)</div>
+        <div class="chip bg-gray" style="opacity:.55"><span class="chip-icon">📱</span>Mobile App — React Native / Expo (Phase 2+)</div>
+      </div>
+    </div>
+
+    <div class="arrow-wrap"><div class="arrow-line"></div><div class="arrow-head"></div></div>
+
+    <!-- FRONTEND -->
+    <div class="layer">
+      <div class="layer-head">
+        <div class="layer-dot c-teal"></div>
+        <div class="layer-name" style="color:#0D8080">Frontend · Web Portal</div>
+        <div class="layer-tech">Next.js 15 · React 19 · App Router · TypeScript</div>
+      </div>
+      <div class="layer-body">
+        <div class="chip bg-teal"><span class="chip-icon">📊</span>Dashboard</div>
+        <div class="chip bg-teal"><span class="chip-icon">📅</span>Appointments</div>
+        <div class="chip bg-teal"><span class="chip-icon">👤</span>Patients</div>
+        <div class="chip bg-teal"><span class="chip-icon">💰</span>Billing</div>
+        <div class="chip bg-teal"><span class="chip-icon">👨‍⚕️</span>Staff</div>
+        <div class="chip bg-teal"><span class="chip-icon">🏥</span>Health Plans</div>
+        <div class="chip bg-teal" style="opacity:.65"><span class="chip-icon">🔬</span>Exams</div>
+        <div class="chip bg-teal" style="opacity:.65"><span class="chip-icon">📋</span>Records</div>
+        <div class="chip bg-teal" style="opacity:.65"><span class="chip-icon">🚗</span>Home Visits</div>
+        <div class="chip bg-teal" style="opacity:.65"><span class="chip-icon">📈</span>Analytics</div>
+        <div class="chip bg-teal" style="opacity:.65"><span class="chip-icon">💬</span>WhatsApp</div>
+      </div>
+      <div class="layer-desc">
+        React Query (TanStack v5) · Zustand · FullCalendar · Tailwind CSS · shadcn/ui · Socket.io client
+      </div>
+    </div>
+
+    <div class="arrow-wrap">
+      <div class="arrow-row">
+        <div class="arrow-label">⬇ REST /api/*</div>
+        <div class="arrow-label">⟷ WebSocket</div>
+      </div>
+      <div class="arrow-head" style="margin-top:-2px"></div>
+    </div>
+
+    <!-- BACKEND -->
+    <div class="layer">
+      <div class="layer-head">
+        <div class="layer-dot c-indigo"></div>
+        <div class="layer-name" style="color:#4338CA">Backend API</div>
+        <div class="layer-tech">NestJS 10 · TypeScript · Prisma 6 ORM · BullMQ · Socket.io</div>
+      </div>
+      <div class="layer-body">
+        <div class="chip bg-indigo"><span class="chip-icon">📅</span>Appointments</div>
+        <div class="chip bg-indigo"><span class="chip-icon">👤</span>Patients</div>
+        <div class="chip bg-indigo"><span class="chip-icon">💰</span>Billing</div>
+        <div class="chip bg-indigo"><span class="chip-icon">🏥</span>Health Plans</div>
+        <div class="chip bg-indigo"><span class="chip-icon">🏢</span>Companies</div>
+        <div class="chip bg-indigo"><span class="chip-icon">📄</span>Documents</div>
+        <div class="chip bg-indigo"><span class="chip-icon">🔗</span>BFF</div>
+        <div class="chip bg-violet"><span class="chip-icon">⚡</span>BullMQ Queues</div>
+        <div class="chip bg-cyan"><span class="chip-icon">🔌</span>Socket.io /calendar</div>
+        <div class="chip bg-gray"><span class="chip-icon">🔐</span>Auth Guard (JWT)</div>
+        <div class="chip bg-gray"><span class="chip-icon">📝</span>Audit Interceptor</div>
+      </div>
+      <div class="layer-desc">
+        Role-based access control (RBAC) · Request validation (class-validator) · Audit logging · Swagger docs
+      </div>
+    </div>
+
+    <div class="arrow-wrap">
+      <div class="arrow-row">
+        <div class="arrow-label">⬇ Prisma ORM</div>
+        <div class="arrow-label">⬇ BullMQ / ioredis</div>
+      </div>
+      <div class="arrow-head" style="margin-top:-2px"></div>
+    </div>
+
+    <!-- DATA -->
+    <div class="layer">
+      <div class="layer-head">
+        <div class="layer-dot c-emerald"></div>
+        <div class="layer-name" style="color:#065F46">Data Layer</div>
+        <div class="layer-tech">Hosted in Docker Compose (dev) · Managed services (prod)</div>
+      </div>
+      <div class="layer-body">
+        <div class="chip bg-emerald"><span class="chip-icon">🐘</span>PostgreSQL 16 — Primary Database · 12+ tables</div>
+        <div class="chip bg-emerald"><span class="chip-icon">🔴</span>Redis 7 — Cache · Job Queues · Sessions</div>
+      </div>
+      <div class="layer-desc">
+        Tables: appointments · patients · staff · invoices · health_plan_products · companies · rooms · staff_availability · services · audit_log · …
+      </div>
+    </div>
+
+    <div class="arrow-wrap"><div class="arrow-line"></div><div class="arrow-head"></div></div>
+
+    <!-- EXTERNAL + INFRA row -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <!-- EXTERNAL -->
+      <div class="layer">
+        <div class="layer-head">
+          <div class="layer-dot c-amber"></div>
+          <div class="layer-name" style="color:#92400E">External Services</div>
+        </div>
+        <div class="layer-body" style="flex-direction:column;gap:6px">
+          <div class="chip bg-amber"><span class="chip-icon">🔑</span>Keycloak — Auth · RS256 JWT</div>
+          <div class="chip bg-amber" style="opacity:.65"><span class="chip-icon">💬</span>Meta Cloud API — WhatsApp (Phase 2)</div>
+          <div class="chip bg-amber" style="opacity:.65"><span class="chip-icon">☁️</span>Cloudflare R2 — File Storage</div>
+        </div>
+      </div>
+      <!-- INFRASTRUCTURE -->
+      <div class="layer">
+        <div class="layer-head">
+          <div class="layer-dot c-slate"></div>
+          <div class="layer-name" style="color:#475569">Infrastructure</div>
+        </div>
+        <div class="layer-body" style="flex-direction:column;gap:6px">
+          <div class="chip bg-gray"><span class="chip-icon">🐳</span>Docker Compose — Dev environment</div>
+          <div class="chip bg-gray"><span class="chip-icon">☸️</span>Kubernetes — Prod · Hetzner EU / AWS</div>
+          <div class="chip bg-gray"><span class="chip-icon">⚙️</span>GitHub Actions → GHCR → Rolling Deploy</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /flow -->
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+
+    <!-- MONOREPO -->
+    <div class="side-card">
+      <div class="side-head">📦 Monorepo · Turborepo + pnpm</div>
+      <div class="side-body" style="gap:10px">
+        <div>
+          <div style="font-size:10px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Apps</div>
+          <div class="pkg-row"><div class="pkg-name">apps/api</div><div class="pkg-desc">NestJS backend</div></div>
+          <div class="pkg-row"><div class="pkg-name">apps/web</div><div class="pkg-desc">Next.js portal</div></div>
+          <div class="pkg-row" style="opacity:.5"><div class="pkg-name">apps/mobile</div><div class="pkg-desc">Phase 2+</div></div>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Shared Packages</div>
+          <div class="pkg-row">
+            <div>
+              <div class="pkg-name">@cms/database</div>
+              <div class="pkg-desc" style="font-size:10px">Prisma schema + seed</div>
+            </div>
+          </div>
+          <div class="pkg-row">
+            <div>
+              <div class="pkg-name">@cms/types</div>
+              <div class="pkg-desc" style="font-size:10px">Zod schemas + TS types</div>
+            </div>
+          </div>
+          <div class="pkg-row">
+            <div>
+              <div class="pkg-name">@cms/config</div>
+              <div class="pkg-desc" style="font-size:10px">tsconfig · ESLint · Tailwind</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PHASES -->
+    <div class="side-card">
+      <div class="side-head">🗺️ Delivery Phases</div>
+      <div class="side-body">
+        <div class="phase-row">
+          <div class="phase-badge phase-done">✅ Phase 1</div>
+          <div class="phase-text">Appointments, Patient CRM, Billing & Invoicing</div>
+        </div>
+        <div class="phase-row">
+          <div class="phase-badge phase-prog">🔄 Phase 2</div>
+          <div class="phase-text">WhatsApp Bot, Health Plans, Exam Results Portal</div>
+        </div>
+        <div class="phase-row">
+          <div class="phase-badge phase-plan">📋 Phase 3</div>
+          <div class="phase-text">Analytics, Medical Records, Home Visits module</div>
+        </div>
+        <div class="phase-row">
+          <div class="phase-badge phase-plan">📋 Phase 4+</div>
+          <div class="phase-text">Mobile App, EMR, AI-assisted scheduling</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TECH STACK -->
+    <div class="side-card">
+      <div class="side-head">⚙️ Key Tech Stack</div>
+      <div class="side-body" style="gap:5px">
+        <div class="stack-row"><div class="stack-label" style="width:60px">Runtime</div><div class="stack-val">Node.js 22 · TypeScript 5</div></div>
+        <div class="stack-row"><div class="stack-label" style="width:60px">Auth</div><div class="stack-val">Keycloak · RS256 JWT</div></div>
+        <div class="stack-row"><div class="stack-label" style="width:60px">ORM</div><div class="stack-val">Prisma 6</div></div>
+        <div class="stack-row"><div class="stack-label" style="width:60px">Queues</div><div class="stack-val">BullMQ + Redis 7</div></div>
+        <div class="stack-row"><div class="stack-label" style="width:60px">Realtime</div><div class="stack-val">Socket.io</div></div>
+        <div class="stack-row"><div class="stack-label" style="width:60px">Storage</div><div class="stack-val">Cloudflare R2</div></div>
+        <div class="stack-row"><div class="stack-label" style="width:60px">CI/CD</div><div class="stack-val">GitHub Actions</div></div>
+      </div>
+    </div>
+
+  </div><!-- /sidebar -->
+</div><!-- /main -->
+</body>
+</html>
