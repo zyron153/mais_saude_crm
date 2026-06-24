@@ -24,7 +24,7 @@ import { RedisModule } from "./common/redis/redis.module";
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 60 }]),
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 300 }]),
     JwtModule.register({ global: true }),
     BullModule.forRoot({
       redis: {

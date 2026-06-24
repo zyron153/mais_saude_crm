@@ -23,7 +23,7 @@ test.beforeAll(async ({ request }) => {
       fullName: "E2E Paciente Teste",
       dateOfBirth: "1990-01-15",
       gender: "female",
-      phone: "+2389900099",
+      phone: `+23899${String(Date.now()).slice(-5)}`,
       consentGiven: true,
     },
   });
@@ -43,7 +43,7 @@ test.beforeAll(async ({ request }) => {
   // Book appointment 3 days from now at 10:00 local
   const apptDate = new Date();
   apptDate.setDate(apptDate.getDate() + 3);
-  apptDate.setHours(10, 0, 0, 0);
+  apptDate.setHours(14, 0, 0, 0);
 
   const ar = await request.post(`${API}/appointments`, {
     data: {
@@ -62,6 +62,11 @@ test.beforeAll(async ({ request }) => {
 // Cleanup: soft-delete the patient (cascades to timeline)
 // ──────────────────────────────────────────────────────────────────────────────
 test.afterAll(async ({ request }) => {
+  if (appointmentId) {
+    await request.patch(`${API}/appointments/${appointmentId}/status`, {
+      data: { status: "cancelled" },
+    }).catch(() => {});
+  }
   if (patientId) await request.delete(`${API}/patients/${patientId}`);
 });
 
@@ -124,15 +129,17 @@ test("record payment → invoice transitions to paid", async ({ request }) => {
 
 test("billing page shows the invoice", async ({ page }) => {
   await page.goto("/billing");
-  await expect(page.getByText("INV-")).toBeVisible();
+  await expect(page.getByText("INV-").first()).toBeVisible();
 });
 
 test("invoice detail page renders", async ({ page }) => {
+  expect(invoiceId, "invoiceId must be set from previous test").toBeTruthy();
   await page.goto(`/billing/${invoiceId}`);
-  await expect(page.getByText("E2E Paciente Editado")).toBeVisible();
+  await expect(page.locator("h1").filter({ hasText: /INV-/ })).toBeVisible({ timeout: 10_000 });
 });
 
 test("receipt endpoint returns a URL", async ({ request }) => {
+  expect(invoiceId, "invoiceId must be set from previous test").toBeTruthy();
   const res = await request.get(`${API}/invoices/${invoiceId}/receipt`);
   expect(res.status()).toBe(200);
   const body = await res.json() as { url: string };

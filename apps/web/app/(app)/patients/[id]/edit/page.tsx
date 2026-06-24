@@ -22,10 +22,10 @@ const INPUT = "w-full text-[13px] border border-dim-200 rounded-[8px] px-3 py-2 
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-1">
-      <label className="text-[11px] font-semibold text-dim-500 uppercase tracking-wide">{label}</label>
+    <label className="flex flex-col gap-1 cursor-default">
+      <span className="text-[11px] font-semibold text-dim-500 uppercase tracking-wide">{label}</span>
       {children}
-    </div>
+    </label>
   );
 }
 
