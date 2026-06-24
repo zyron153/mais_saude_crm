@@ -3,6 +3,7 @@ import { ConfigModule } from "@nestjs/config";
 import { APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core";
 import { JwtModule } from "@nestjs/jwt";
 import { BullModule } from "@nestjs/bull";
+import { ThrottlerModule, ThrottlerGuard } from "@nestjs/throttler";
 import { HealthModule } from "./health/health.module";
 import { PatientsModule } from "./modules/patients/patients.module";
 import { AppointmentsModule } from "./modules/appointments/appointments.module";
@@ -23,6 +24,7 @@ import { RedisModule } from "./common/redis/redis.module";
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 60 }]),
     JwtModule.register({ global: true }),
     BullModule.forRoot({
       redis: {
@@ -44,6 +46,7 @@ import { RedisModule } from "./common/redis/redis.module";
     BffModule,
   ],
   providers: [
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_INTERCEPTOR, useClass: PerformanceInterceptor },

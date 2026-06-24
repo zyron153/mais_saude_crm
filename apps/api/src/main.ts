@@ -1,4 +1,5 @@
 import { NestFactory } from "@nestjs/core";
+import helmet from "helmet";
 import { AppModule } from "./app.module";
 import { HttpExceptionFilter } from "./common/filters/http-exception.filter";
 import { ZodValidationPipe } from "./common/pipes/zod-validation.pipe";
@@ -8,6 +9,7 @@ async function bootstrap() {
     logger: ["log", "warn", "error"],
   });
 
+  app.use(helmet());
   app.setGlobalPrefix("v1");
 
   app.enableCors({
