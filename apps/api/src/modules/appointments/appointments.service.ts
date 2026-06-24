@@ -11,6 +11,7 @@ import type { Redis } from "ioredis";
 import { REDIS_CLIENT } from "../../common/redis/redis.module";
 import { AppointmentsRepository } from "./appointments.repository";
 import { AppointmentsGateway } from "./appointments.gateway";
+import { BillingService } from "../billing/billing.service";
 import {
   CreateAppointmentDto,
   UpdateAppointmentStatusDto,
@@ -29,6 +30,7 @@ export class AppointmentsService {
   constructor(
     private readonly repo: AppointmentsRepository,
     private readonly gateway: AppointmentsGateway,
+    private readonly billingService: BillingService,
     @InjectQueue("reminders") private readonly remindersQueue: Queue,
     @Inject(REDIS_CLIENT) private readonly redis: Redis
   ) {}
@@ -162,6 +164,22 @@ export class AppointmentsService {
 
     const updated = await this.repo.update(id, data);
     this.gateway.emitAppointmentUpdated(updated);
+
+    if (dto.status === "completed" && appointment.service) {
+      const unitPrice = Number(appointment.service.price);
+      if (unitPrice > 0) {
+        await this.billingService.createDraft({
+          patientId: appointment.patientId,
+          appointmentId: id,
+          serviceId: appointment.serviceId,
+          serviceName: appointment.service.name,
+          unitPrice,
+        }).catch((err: unknown) => {
+          console.error(`[billing] auto-invoice failed for appointment ${id}:`, err);
+        });
+      }
+    }
+
     return updated;
   }
 

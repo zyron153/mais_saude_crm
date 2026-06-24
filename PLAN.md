@@ -256,10 +256,16 @@ curl -s -X POST http://localhost:8080/realms/maissaude/protocol/openid-connect/t
 **What:** When `PATCH /v1/appointments/:id/status` sets status to `completed`, the billing
 service should automatically create a draft invoice for the appointment's service.
 
-**Files:** `apps/api/src/modules/appointments/appointments.service.ts`
+**Files:**
+- `apps/api/src/modules/appointments/appointments.repository.ts` (add `price` to service select)
+- `apps/api/src/modules/appointments/appointments.module.ts` (import BillingModule)
+- `apps/api/src/modules/appointments/appointments.service.ts` (inject BillingService, call createDraft)
+- `apps/api/src/modules/billing/billing.service.ts` (add createDraft method)
 
-- [ ] After status update to `completed`, call `billingService.createDraft(appointmentId)`
-- [ ] Draft invoice: patient + service line item, status = `draft`
+- [x] After status update to `completed`, call `billingService.createDraft(...)`
+- [x] Draft invoice: patient + service line item, status = `draft`
+
+Note: TypeScript passes clean. Runtime verification requires Docker + API running.
 
 **Verification:**
 ```bash

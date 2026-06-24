@@ -5,10 +5,12 @@ import { AppointmentsService } from "./appointments.service";
 import { AppointmentsRepository } from "./appointments.repository";
 import { AppointmentsGateway } from "./appointments.gateway";
 import { RemindersProcessor } from "./reminders.processor";
+import { BillingModule } from "../billing/billing.module";
 
 @Module({
   imports: [
     BullModule.registerQueue({ name: "reminders" }),
+    BillingModule,
   ],
   controllers: [AppointmentsController],
   providers: [

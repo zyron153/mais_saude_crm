@@ -125,6 +125,33 @@ export class BillingService {
     });
   }
 
+  async createDraft(data: {
+    patientId: string;
+    appointmentId: string;
+    serviceId: string;
+    serviceName: string;
+    unitPrice: number;
+  }) {
+    const invoiceNumber = await this.repo.nextInvoiceNumber();
+    return this.repo.create({
+      invoiceNumber,
+      patient: { connect: { id: data.patientId } },
+      appointment: { connect: { id: data.appointmentId } },
+      subtotal: data.unitPrice,
+      total: data.unitPrice,
+      status: "draft",
+      items: {
+        create: [{
+          serviceId: data.serviceId,
+          description: data.serviceName,
+          quantity: 1,
+          unitPrice: data.unitPrice,
+          total: data.unitPrice,
+        }],
+      },
+    });
+  }
+
   async getReceiptUrl(invoiceId: string): Promise<{ url: string }> {
     const invoice = await this.repo.findByIdLite(invoiceId);
     if (!invoice) throw new NotFoundException(`Invoice ${invoiceId} not found`);
