@@ -15,6 +15,7 @@ import { StaffModule } from "./modules/staff/staff.module";
 import { ServicesModule } from "./modules/services/services.module";
 import { BffModule } from "./modules/bff/bff.module";
 import { PublicModule } from "./modules/public/public.module";
+import { SettingsModule } from "./modules/settings/settings.module";
 import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
 import { RolesGuard } from "./common/guards/roles.guard";
 import { AuditInterceptor } from "./common/interceptors/audit.interceptor";
@@ -46,6 +47,7 @@ import { RedisModule } from "./common/redis/redis.module";
     ServicesModule,
     BffModule,
     PublicModule,
+    SettingsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

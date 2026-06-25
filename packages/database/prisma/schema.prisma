@@ -512,6 +512,14 @@ model PublicHoliday {
 
 // ─── Audit ───────────────────────────────────────────────────────────────────
 
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}
+
 model AuditLog {
   id         String   @id @default(uuid())
   actorId    String?  @db.VarChar(36)

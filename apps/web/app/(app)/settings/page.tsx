@@ -1,15 +1,34 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Building2, Bell, Users, Plug, Shield,
-  Check, AlertCircle, Clock, Phone, Mail, Globe,
-  Key, Lock, Eye, EyeOff,
+  AlertCircle, Clock, Phone, Mail, Globe,
+  Key, Lock, Eye, EyeOff, Check,
 } from "lucide-react";
+import { useMessage } from "../../../components/ui/message-handler";
 
-/* ── Mock data ───────────────────────────────────────────── */
+/* ── Types ───────────────────────────────────────────────── */
 
-const CLINIC = {
+type Hour = { day: string; open: string; close: string; active: boolean };
+
+type ClinicSettings = {
+  name: string; nif: string; website: string; phone: string;
+  email: string; address: string; country: string; hours: Hour[];
+};
+
+type NotifSettings = Record<string, boolean>;
+
+type ApiStaff = {
+  id: string; fullName: string; email: string; role: string;
+  phone: string | null; specialtyCode: string | null;
+  availability: { dayOfWeek: number; startTime: string; endTime: string }[];
+};
+
+/* ── Defaults (used when DB has no saved settings yet) ───── */
+
+const DEFAULT_CLINIC: ClinicSettings = {
   name:    "Clínica Mais Saúde",
   address: "Achada Santo António, Praia, Santiago",
   country: "Cabo Verde",
@@ -17,56 +36,26 @@ const CLINIC = {
   email:   "geral@maissaude.cv",
   website: "www.maissaude.cv",
   nif:     "200 456 789",
-  hours:   [
-    { day: "Segunda-feira", open: "08:00", close: "18:00", active: true },
-    { day: "Terça-feira",   open: "08:00", close: "18:00", active: true },
-    { day: "Quarta-feira",  open: "08:00", close: "18:00", active: true },
-    { day: "Quinta-feira",  open: "08:00", close: "18:00", active: true },
-    { day: "Sexta-feira",   open: "08:00", close: "17:00", active: true },
-    { day: "Sábado",        open: "09:00", close: "13:00", active: true },
+  hours: [
+    { day: "Segunda-feira", open: "08:00", close: "18:00", active: true  },
+    { day: "Terça-feira",   open: "08:00", close: "18:00", active: true  },
+    { day: "Quarta-feira",  open: "08:00", close: "18:00", active: true  },
+    { day: "Quinta-feira",  open: "08:00", close: "18:00", active: true  },
+    { day: "Sexta-feira",   open: "08:00", close: "17:00", active: true  },
+    { day: "Sábado",        open: "09:00", close: "13:00", active: true  },
     { day: "Domingo",       open: "",      close: "",       active: false },
   ],
 };
 
-const NOTIF_SETTINGS = [
-  { id: "wa_reminder",  group: "WhatsApp",        label: "Lembrete de consulta (24h antes)",   desc: "Enviado automaticamente ao paciente",               on: true  },
-  { id: "wa_confirm",   group: "WhatsApp",        label: "Confirmação de marcação",             desc: "Quando o agendamento é criado",                     on: true  },
-  { id: "wa_cancel",    group: "WhatsApp",        label: "Notificação de cancelamento",         desc: "Quando a consulta é cancelada ou reagendada",       on: true  },
-  { id: "wa_result",    group: "WhatsApp",        label: "Resultado de exame disponível",       desc: "Quando os resultados são carregados no sistema",    on: false },
-  { id: "email_daily",  group: "Email Interno",   label: "Resumo diário da agenda",             desc: "Enviado à equipa às 07h30",                         on: true  },
-  { id: "email_overdue",group: "Email Interno",   label: "Faturas vencidas",                   desc: "Relatório semanal de faturas em atraso",            on: true  },
-  { id: "email_new_pt", group: "Email Interno",   label: "Novo paciente registado",             desc: "Notificação para a direcção",                       on: false },
+const NOTIF_DEFS = [
+  { id: "wa_reminder",   group: "WhatsApp",      label: "Lembrete de consulta (24h antes)",   desc: "Enviado automaticamente ao paciente",             defaultOn: true  },
+  { id: "wa_confirm",    group: "WhatsApp",      label: "Confirmação de marcação",             desc: "Quando o agendamento é criado",                   defaultOn: true  },
+  { id: "wa_cancel",     group: "WhatsApp",      label: "Notificação de cancelamento",         desc: "Quando a consulta é cancelada ou reagendada",     defaultOn: true  },
+  { id: "wa_result",     group: "WhatsApp",      label: "Resultado de exame disponível",       desc: "Quando os resultados são carregados no sistema",  defaultOn: false },
+  { id: "email_daily",   group: "Email Interno", label: "Resumo diário da agenda",             desc: "Enviado à equipa às 07h30",                       defaultOn: true  },
+  { id: "email_overdue", group: "Email Interno", label: "Faturas vencidas",                   desc: "Relatório semanal de faturas em atraso",          defaultOn: true  },
+  { id: "email_new_pt",  group: "Email Interno", label: "Novo paciente registado",             desc: "Notificação para a direcção",                     defaultOn: false },
 ];
-
-const USERS = [
-  { id: "u1", name: "Fátima Costa",  email: "f.costa@maissaude.cv",   role: "Médica",       status: "active",   last: "Hoje"       },
-  { id: "u2", name: "Nuno Barros",   email: "n.barros@maissaude.cv",  role: "Médico",       status: "active",   last: "Hoje"       },
-  { id: "u3", name: "Sofia Lima",    email: "s.lima@maissaude.cv",    role: "Enfermeira",   status: "active",   last: "Hoje"       },
-  { id: "u4", name: "Carlos Neves",  email: "c.neves@maissaude.cv",   role: "Enfermeiro",   status: "active",   last: "Ontem"      },
-  { id: "u5", name: "Ana Silva",     email: "a.silva@maissaude.cv",   role: "Recepcionista",status: "active",   last: "Hoje"       },
-  { id: "u6", name: "Miguel Varela", email: "m.varela@maissaude.cv",  role: "Médico",       status: "inactive", last: "15 Jun"     },
-  { id: "u7", name: "Pedro Santos",  email: "p.santos@maissaude.cv",  role: "Técnico",      status: "active",   last: "Hoje"       },
-  { id: "u8", name: "Admin Sistema", email: "admin@maissaude.cv",     role: "Administrador",status: "active",   last: "Hoje"       },
-];
-
-const INTEGRATIONS = [
-  { name: "Keycloak SSO",       desc: "Autenticação e gestão de identidades",  status: "connected",    icon: Shield, color: "text-brand-600",   bg: "bg-brand-50"   },
-  { name: "WhatsApp Business",  desc: "Mensagens automáticas aos pacientes",   status: "connected",    icon: Phone,  color: "text-emerald-600", bg: "bg-emerald-50" },
-  { name: "Cloudflare R2",      desc: "Armazenamento de exames e documentos",  status: "connected",    icon: Globe,  color: "text-amber-600",   bg: "bg-amber-50"   },
-  { name: "Email (SMTP)",       desc: "Notificações por email",                status: "connected",    icon: Mail,   color: "text-violet-600",  bg: "bg-violet-50"  },
-  { name: "Laboratório CVLab",  desc: "Integração de resultados de exames",    status: "disconnected", icon: Plug,   color: "text-dim-400",     bg: "bg-dim-100"    },
-  { name: "Portal de Saúde CV", desc: "Comunicação com o SNS nacional",        status: "pending",      icon: Globe,  color: "text-amber-600",   bg: "bg-amber-50"   },
-];
-
-const ROLE_COLOR: Record<string, string> = {
-  "Médica":        "bg-brand-100 text-brand-800",
-  "Médico":        "bg-brand-100 text-brand-800",
-  "Enfermeira":    "bg-emerald-100 text-emerald-800",
-  "Enfermeiro":    "bg-emerald-100 text-emerald-800",
-  "Recepcionista": "bg-amber-100 text-amber-800",
-  "Técnico":       "bg-rose-100 text-rose-800",
-  "Administrador": "bg-violet-100 text-violet-800",
-};
 
 /* ── UI primitives ───────────────────────────────────────── */
 
@@ -82,18 +71,56 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function Toggle({ defaultChecked }: { defaultChecked?: boolean }) {
+function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
     <label className="relative inline-flex items-center cursor-pointer shrink-0">
-      <input type="checkbox" className="sr-only peer" defaultChecked={defaultChecked} />
+      <input type="checkbox" className="sr-only peer" checked={checked} onChange={e => onChange(e.target.checked)} />
       <div className="w-9 h-5 bg-dim-200 rounded-full peer peer-checked:bg-brand-700 transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4" />
     </label>
   );
 }
 
-/* ── Tab content components ──────────────────────────────── */
+function SaveButton({ saving, onClick }: { saving: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={saving}
+      className="flex items-center gap-2 bg-brand-700 hover:bg-brand-800 disabled:opacity-60 text-white font-semibold px-5 py-2.5 rounded-[10px] text-[13px] transition-colors shadow-[0_1px_2px_rgba(0,0,0,.08)]"
+    >
+      {saving ? "A guardar…" : "Guardar Alterações"}
+    </button>
+  );
+}
 
-function ClinicTab({ saved, onSave }: { saved: boolean; onSave: () => void }) {
+/* ── Clinic Tab ──────────────────────────────────────────── */
+
+function ClinicTab({ initial }: { initial: ClinicSettings }) {
+  const { addMessage } = useMessage();
+  const queryClient = useQueryClient();
+  const [form, setForm] = useState<ClinicSettings>(initial);
+
+  useEffect(() => { setForm(initial); }, [JSON.stringify(initial)]); // eslint-disable-line
+
+  function setField(k: keyof Omit<ClinicSettings, "hours">, v: string) {
+    setForm(f => ({ ...f, [k]: v }));
+  }
+  function setHour(i: number, patch: Partial<Hour>) {
+    setForm(f => ({ ...f, hours: f.hours.map((h, idx) => idx === i ? { ...h, ...patch } : h) }));
+  }
+
+  const mutation = useMutation({
+    mutationFn: () => fetch("/api/settings/clinic", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form),
+    }).then(async r => { if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.message ?? "Erro ao guardar"); } }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["settings"] });
+      addMessage("Success", "Configurações da clínica guardadas com sucesso!");
+    },
+    onError: (e: Error) => addMessage("Error", e.message),
+  });
+
   return (
     <div className="flex flex-col gap-4">
       <div className={CARD}>
@@ -103,28 +130,28 @@ function ClinicTab({ saved, onSave }: { saved: boolean; onSave: () => void }) {
         <div className="px-5 py-5 grid grid-cols-2 gap-4">
           <div className="col-span-2">
             <Field label="Nome da Clínica">
-              <input className={inputCls} defaultValue={CLINIC.name} />
+              <input className={inputCls} value={form.name} onChange={e => setField("name", e.target.value)} />
             </Field>
           </div>
           <Field label="NIF">
-            <input className={`${inputCls} font-mono`} defaultValue={CLINIC.nif} />
+            <input className={`${inputCls} font-mono`} value={form.nif} onChange={e => setField("nif", e.target.value)} />
           </Field>
           <Field label="Website">
-            <input className={inputCls} defaultValue={CLINIC.website} />
+            <input className={inputCls} value={form.website} onChange={e => setField("website", e.target.value)} />
           </Field>
           <Field label="Telefone Principal">
-            <input className={`${inputCls} font-mono`} defaultValue={CLINIC.phone} />
+            <input className={`${inputCls} font-mono`} value={form.phone} onChange={e => setField("phone", e.target.value)} />
           </Field>
           <Field label="Email Geral">
-            <input type="email" className={inputCls} defaultValue={CLINIC.email} />
+            <input type="email" className={inputCls} value={form.email} onChange={e => setField("email", e.target.value)} />
           </Field>
           <div className="col-span-2">
             <Field label="Endereço">
-              <input className={inputCls} defaultValue={CLINIC.address} />
+              <input className={inputCls} value={form.address} onChange={e => setField("address", e.target.value)} />
             </Field>
           </div>
           <Field label="País / Região">
-            <select className={inputCls}>
+            <select className={inputCls} value={form.country} onChange={e => setField("country", e.target.value)}>
               <option>Cabo Verde</option>
               <option>Portugal</option>
             </select>
@@ -137,138 +164,190 @@ function ClinicTab({ saved, onSave }: { saved: boolean; onSave: () => void }) {
           <h3 className="font-display text-[14px] font-semibold text-dim-900">Horário de Funcionamento</h3>
         </div>
         <div className="px-5 py-4 flex flex-col gap-2">
-          {CLINIC.hours.map((h) => (
+          {form.hours.map((h, i) => (
             <div key={h.day} className="flex items-center gap-4 py-2 border-b border-dim-50 last:border-0">
               <div className="w-36 shrink-0">
                 <span className={`text-[13px] font-medium ${h.active ? "text-dim-800" : "text-dim-400"}`}>{h.day}</span>
               </div>
               {h.active ? (
-                <>
-                  <div className="flex items-center gap-2">
-                    <input className="w-20 border border-dim-200 rounded-[8px] px-2.5 py-1.5 text-[12px] font-mono text-dim-700 focus:outline-none focus:border-brand-500 bg-white" defaultValue={h.open} />
-                    <span className="text-dim-300 text-[12px]">–</span>
-                    <input className="w-20 border border-dim-200 rounded-[8px] px-2.5 py-1.5 text-[12px] font-mono text-dim-700 focus:outline-none focus:border-brand-500 bg-white" defaultValue={h.close} />
-                  </div>
-                  <Toggle defaultChecked={true} />
-                </>
+                <div className="flex items-center gap-2 flex-1">
+                  <input
+                    type="time"
+                    value={h.open}
+                    onChange={e => setHour(i, { open: e.target.value })}
+                    className="w-24 border border-dim-200 rounded-[8px] px-2.5 py-1.5 text-[12px] font-mono text-dim-700 focus:outline-none focus:border-brand-500 bg-white"
+                  />
+                  <span className="text-dim-300 text-[12px]">–</span>
+                  <input
+                    type="time"
+                    value={h.close}
+                    onChange={e => setHour(i, { close: e.target.value })}
+                    className="w-24 border border-dim-200 rounded-[8px] px-2.5 py-1.5 text-[12px] font-mono text-dim-700 focus:outline-none focus:border-brand-500 bg-white"
+                  />
+                </div>
               ) : (
-                <>
-                  <span className="text-[12px] text-dim-400 italic">Encerrado</span>
-                  <Toggle defaultChecked={false} />
-                </>
+                <span className="flex-1 text-[12px] text-dim-400 italic">Encerrado</span>
               )}
+              <Toggle checked={h.active} onChange={v => setHour(i, { active: v, open: v ? "08:00" : "", close: v ? "17:00" : "" })} />
             </div>
           ))}
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
-        <button
-          onClick={onSave}
-          className="flex items-center gap-2 bg-brand-700 hover:bg-brand-800 text-white font-semibold px-5 py-2.5 rounded-[10px] text-[13px] transition-colors shadow-[0_1px_2px_rgba(0,0,0,.08)]"
-        >
-          {saved ? <Check className="w-3.5 h-3.5" /> : null}
-          {saved ? "Guardado!" : "Guardar Alterações"}
-        </button>
-        {saved && <span className="text-[12px] text-emerald-600 font-medium">Alterações guardadas com sucesso.</span>}
-      </div>
+      <SaveButton saving={mutation.isPending} onClick={() => mutation.mutate()} />
     </div>
   );
 }
 
-function NotificationsTab({ saved, onSave }: { saved: boolean; onSave: () => void }) {
-  const groups = [...new Set(NOTIF_SETTINGS.map((n) => n.group))];
+/* ── Notifications Tab ───────────────────────────────────── */
+
+function NotificationsTab({ initial }: { initial: NotifSettings }) {
+  const { addMessage } = useMessage();
+  const queryClient = useQueryClient();
+  const [state, setState] = useState<NotifSettings>(() =>
+    Object.fromEntries(NOTIF_DEFS.map(n => [n.id, initial[n.id] ?? n.defaultOn]))
+  );
+
+  useEffect(() => {
+    setState(Object.fromEntries(NOTIF_DEFS.map(n => [n.id, initial[n.id] ?? n.defaultOn])));
+  }, [JSON.stringify(initial)]); // eslint-disable-line
+
+  const groups = [...new Set(NOTIF_DEFS.map(n => n.group))];
+
+  const mutation = useMutation({
+    mutationFn: () => fetch("/api/settings/notifications", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(state),
+    }).then(async r => { if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.message ?? "Erro"); } }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["settings"] });
+      addMessage("Success", "Preferências de notificação guardadas!");
+    },
+    onError: (e: Error) => addMessage("Error", e.message),
+  });
+
   return (
     <div className="flex flex-col gap-4">
-      {groups.map((group) => (
+      {groups.map(group => (
         <div key={group} className={CARD}>
           <div className="px-5 py-4 border-b border-dim-100">
             <h3 className="font-display text-[14px] font-semibold text-dim-900">{group}</h3>
           </div>
           <div className="divide-y divide-dim-100">
-            {NOTIF_SETTINGS.filter((n) => n.group === group).map((n) => (
+            {NOTIF_DEFS.filter(n => n.group === group).map(n => (
               <div key={n.id} className="px-5 py-4 flex items-center justify-between gap-4">
                 <div>
                   <p className="text-[13px] font-medium text-dim-900">{n.label}</p>
                   <p className="text-[11px] text-dim-400 mt-0.5">{n.desc}</p>
                 </div>
-                <Toggle defaultChecked={n.on} />
+                <Toggle checked={state[n.id] ?? n.defaultOn} onChange={v => setState(s => ({ ...s, [n.id]: v }))} />
               </div>
             ))}
           </div>
         </div>
       ))}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={onSave}
-          className="flex items-center gap-2 bg-brand-700 hover:bg-brand-800 text-white font-semibold px-5 py-2.5 rounded-[10px] text-[13px] transition-colors shadow-[0_1px_2px_rgba(0,0,0,.08)]"
-        >
-          {saved ? <Check className="w-3.5 h-3.5" /> : null}
-          {saved ? "Guardado!" : "Guardar Preferências"}
-        </button>
-      </div>
+      <SaveButton saving={mutation.isPending} onClick={() => mutation.mutate()} />
     </div>
   );
 }
 
+/* ── Users Tab ───────────────────────────────────────────── */
+
+const ROLE_LABEL: Record<string, string> = {
+  doctor: "Médico/a", nurse: "Enfermeiro/a", receptionist: "Recepcionista",
+  lab_tech: "Técnico/a Lab.", admin: "Administrador", corporate_hr: "RH",
+};
+const ROLE_COLOR: Record<string, string> = {
+  doctor: "bg-brand-100 text-brand-800", nurse: "bg-emerald-100 text-emerald-800",
+  receptionist: "bg-amber-100 text-amber-800", lab_tech: "bg-rose-100 text-rose-800",
+  admin: "bg-violet-100 text-violet-800", corporate_hr: "bg-violet-100 text-violet-800",
+};
+
 function UsersTab() {
+  const { data: staff = [], isLoading } = useQuery<ApiStaff[]>({
+    queryKey: ["bff-staff"],
+    queryFn: () => fetch("/api/bff/staff").then(r => r.json()),
+    staleTime: 60_000,
+  });
+
   return (
     <div className={CARD}>
       <div className="flex items-center justify-between px-5 py-4 border-b border-dim-100">
         <h3 className="font-display text-[14px] font-semibold text-dim-900">Utilizadores do Sistema</h3>
-        <button className="flex items-center gap-1.5 bg-brand-700 hover:bg-brand-800 text-white text-[12px] font-semibold px-3 py-1.5 rounded-[8px] transition-colors">
-          + Convidar
-        </button>
+        <span className="font-mono text-[11px] text-dim-400">{staff.length} colaboradores</span>
       </div>
       <table className="w-full border-collapse">
         <thead>
           <tr>
-            {["Utilizador", "Função", "Email", "Último acesso", "Estado", ""].map((h) => (
+            {["Colaborador", "Função", "Email", "Telefone", "Estado"].map(h => (
               <th key={h} className="text-left text-[10px] font-bold uppercase tracking-[0.07em] text-dim-400 px-5 py-2.5 border-b border-dim-100 bg-dim-50">{h}</th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {USERS.map((u) => (
-            <tr key={u.id} className="hover:bg-dim-50 transition-colors group">
-              <td className="px-5 py-3.5 border-b border-dim-100">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-full bg-brand-100 text-brand-800 font-semibold text-[10px] flex items-center justify-center shrink-0">
-                    {u.name.split(" ").map((n) => n[0]).slice(0, 2).join("")}
+          {isLoading ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <tr key={i} className="animate-pulse">
+                {[140, 80, 160, 100, 60].map((w, j) => (
+                  <td key={j} className="px-5 py-3.5 border-b border-dim-100">
+                    <div className="h-3 bg-dim-100 rounded" style={{ width: w }} />
+                  </td>
+                ))}
+              </tr>
+            ))
+          ) : staff.map(u => {
+            const initials = u.fullName.split(" ").filter(Boolean).slice(0, 2).map(n => n[0]).join("").toUpperCase();
+            const todayDow = new Date().getDay();
+            const onDuty = u.availability.some(a => a.dayOfWeek === todayDow);
+            return (
+              <tr key={u.id} className="hover:bg-dim-50 transition-colors">
+                <td className="px-5 py-3.5 border-b border-dim-100">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-full bg-brand-100 text-brand-800 font-semibold text-[10px] flex items-center justify-center shrink-0">{initials}</div>
+                    <span className="text-[13px] font-medium text-dim-900">{u.fullName}</span>
                   </div>
-                  <span className="text-[13px] font-medium text-dim-900">{u.name}</span>
-                </div>
-              </td>
-              <td className="px-5 py-3.5 border-b border-dim-100">
-                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${ROLE_COLOR[u.role] ?? "bg-dim-100 text-dim-600"}`}>{u.role}</span>
-              </td>
-              <td className="px-5 py-3.5 border-b border-dim-100 font-mono text-[11px] text-dim-500">{u.email}</td>
-              <td className="px-5 py-3.5 border-b border-dim-100 text-[12px] text-dim-500">{u.last}</td>
-              <td className="px-5 py-3.5 border-b border-dim-100">
-                <div className={`inline-flex items-center gap-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-full ${u.status === "active" ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/80" : "bg-dim-100 text-dim-400"}`}>
-                  <div className={`w-1.5 h-1.5 rounded-full ${u.status === "active" ? "bg-emerald-500" : "bg-dim-300"}`} />
-                  {u.status === "active" ? "Activo" : "Inactivo"}
-                </div>
-              </td>
-              <td className="px-5 py-3.5 border-b border-dim-100">
-                <button className="text-[11px] font-semibold text-dim-400 hover:text-dim-700 opacity-0 group-hover:opacity-100 transition-all">Editar</button>
-              </td>
-            </tr>
-          ))}
+                </td>
+                <td className="px-5 py-3.5 border-b border-dim-100">
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${ROLE_COLOR[u.role] ?? "bg-dim-100 text-dim-600"}`}>
+                    {ROLE_LABEL[u.role] ?? u.role}
+                  </span>
+                </td>
+                <td className="px-5 py-3.5 border-b border-dim-100 font-mono text-[11px] text-dim-500">{u.email}</td>
+                <td className="px-5 py-3.5 border-b border-dim-100 font-mono text-[11px] text-dim-500">{u.phone ?? "—"}</td>
+                <td className="px-5 py-3.5 border-b border-dim-100">
+                  <div className={`inline-flex items-center gap-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-full ${onDuty ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/80" : "bg-dim-100 text-dim-400"}`}>
+                    <div className={`w-1.5 h-1.5 rounded-full ${onDuty ? "bg-emerald-500" : "bg-dim-300"}`} />
+                    {onDuty ? "Em serviço" : "Fora"}
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
   );
 }
 
+/* ── Integrations Tab (static — no backend integration APIs) */
+
+const INTEGRATIONS = [
+  { name: "Keycloak SSO",       desc: "Autenticação e gestão de identidades",  status: "connected",    icon: Shield, color: "text-brand-600",   bg: "bg-brand-50"   },
+  { name: "WhatsApp Business",  desc: "Mensagens automáticas aos pacientes",   status: "connected",    icon: Phone,  color: "text-emerald-600", bg: "bg-emerald-50" },
+  { name: "Cloudflare R2",      desc: "Armazenamento de exames e documentos",  status: "connected",    icon: Globe,  color: "text-amber-600",   bg: "bg-amber-50"   },
+  { name: "Email (SMTP)",       desc: "Notificações por email",                status: "connected",    icon: Mail,   color: "text-violet-600",  bg: "bg-violet-50"  },
+  { name: "Laboratório CVLab",  desc: "Integração de resultados de exames",    status: "disconnected", icon: Plug,   color: "text-dim-400",     bg: "bg-dim-100"    },
+  { name: "Portal de Saúde CV", desc: "Comunicação com o SNS nacional",        status: "pending",      icon: Globe,  color: "text-amber-600",   bg: "bg-amber-50"   },
+];
+
 function IntegrationsTab() {
   return (
     <div className="grid grid-cols-2 gap-4">
-      {INTEGRATIONS.map((intg) => {
+      {INTEGRATIONS.map(intg => {
         const Icon = intg.icon;
-        const isConnected    = intg.status === "connected";
-        const isPending      = intg.status === "pending";
-        const isDisconnected = intg.status === "disconnected";
+        const isConnected = intg.status === "connected";
+        const isPending   = intg.status === "pending";
         return (
           <div key={intg.name} className={CARD}>
             <div className="px-5 py-5">
@@ -277,9 +356,9 @@ function IntegrationsTab() {
                   <Icon className={intg.color} style={{ width: 18, height: 18 }} />
                 </div>
                 <div className={`inline-flex items-center gap-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                  isConnected    ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/80" :
-                  isPending      ? "bg-amber-50 text-amber-700 ring-1 ring-amber-200/80"      :
-                                   "bg-dim-100 text-dim-400"
+                  isConnected ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/80" :
+                  isPending   ? "bg-amber-50 text-amber-700 ring-1 ring-amber-200/80"       :
+                                "bg-dim-100 text-dim-400"
                 }`}>
                   <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? "bg-emerald-500" : isPending ? "bg-amber-400 animate-pulse" : "bg-dim-300"}`} />
                   {isConnected ? "Ligado" : isPending ? "Pendente" : "Desligado"}
@@ -289,15 +368,12 @@ function IntegrationsTab() {
               <p className="text-[11px] text-dim-400 mt-0.5">{intg.desc}</p>
               <div className="mt-4 flex items-center gap-2">
                 <button className={`text-[11px] font-semibold px-3 py-1.5 rounded-[8px] border transition-colors ${
-                  isConnected
-                    ? "border-dim-200 text-dim-500 hover:border-dim-300 hover:text-dim-700"
-                    : "border-brand-400 text-brand-700 hover:bg-brand-50"
+                  isConnected ? "border-dim-200 text-dim-500 hover:border-dim-300 hover:text-dim-700"
+                              : "border-brand-400 text-brand-700 hover:bg-brand-50"
                 }`}>
                   {isConnected ? "Configurar" : "Ligar"}
                 </button>
-                {isConnected && (
-                  <button className="text-[11px] font-semibold text-dim-400 hover:text-red-500 transition-colors">Desligar</button>
-                )}
+                {isConnected && <button className="text-[11px] font-semibold text-dim-400 hover:text-red-500 transition-colors">Desligar</button>}
               </div>
             </div>
           </div>
@@ -307,8 +383,12 @@ function IntegrationsTab() {
   );
 }
 
-function SecurityTab({ saved, onSave }: { saved: boolean; onSave: () => void }) {
+/* ── Security Tab (static — auth managed by Keycloak) ────── */
+
+function SecurityTab() {
   const [showPw, setShowPw] = useState(false);
+  const { addMessage } = useMessage();
+
   return (
     <div className="flex flex-col gap-4">
       <div className={CARD}>
@@ -319,11 +399,7 @@ function SecurityTab({ saved, onSave }: { saved: boolean; onSave: () => void }) 
           <Field label="Palavra-passe actual">
             <div className="relative">
               <input type={showPw ? "text" : "password"} className={inputCls} placeholder="••••••••" />
-              <button
-                type="button"
-                onClick={() => setShowPw((s) => !s)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-dim-400 hover:text-dim-700 transition-colors"
-              >
+              <button type="button" onClick={() => setShowPw(s => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-dim-400 hover:text-dim-700 transition-colors">
                 {showPw ? <EyeOff style={{ width: 14, height: 14 }} /> : <Eye style={{ width: 14, height: 14 }} />}
               </button>
             </div>
@@ -335,11 +411,11 @@ function SecurityTab({ saved, onSave }: { saved: boolean; onSave: () => void }) 
             <input type="password" className={inputCls} placeholder="••••••••" />
           </Field>
           <button
-            onClick={onSave}
+            onClick={() => addMessage("Info", "Alteração de palavra-passe gerida pelo Keycloak SSO.")}
             className="flex items-center gap-2 w-fit bg-brand-700 hover:bg-brand-800 text-white font-semibold px-5 py-2.5 rounded-[10px] text-[13px] transition-colors"
           >
-            {saved ? <Check className="w-3.5 h-3.5" /> : <Key className="w-3.5 h-3.5" />}
-            {saved ? "Actualizado!" : "Actualizar Palavra-passe"}
+            <Key className="w-3.5 h-3.5" />
+            Actualizar Palavra-passe
           </button>
         </div>
       </div>
@@ -358,11 +434,14 @@ function SecurityTab({ saved, onSave }: { saved: boolean; onSave: () => void }) 
               <p className="text-[11px] text-dim-400 mt-0.5">Proteja a sua conta com TOTP (Google Authenticator, Authy, etc.)</p>
               <div className="mt-2 flex items-center gap-1.5 text-[11px] text-amber-600 font-medium">
                 <AlertCircle style={{ width: 12, height: 12 }} />
-                Não configurado — recomendado para contas administrativas
+                Gerido pelo Keycloak SSO
               </div>
             </div>
           </div>
-          <button className="text-[12px] font-semibold px-3.5 py-2 rounded-[10px] border border-brand-400 text-brand-700 hover:bg-brand-50 transition-colors shrink-0">
+          <button
+            onClick={() => addMessage("Info", "Configure o 2FA no portal Keycloak da clínica.")}
+            className="text-[12px] font-semibold px-3.5 py-2 rounded-[10px] border border-brand-400 text-brand-700 hover:bg-brand-50 transition-colors shrink-0"
+          >
             Configurar 2FA
           </button>
         </div>
@@ -374,10 +453,10 @@ function SecurityTab({ saved, onSave }: { saved: boolean; onSave: () => void }) 
         </div>
         <div className="divide-y divide-dim-100">
           {[
-            { device: "Chrome · Windows 11", location: "Praia, Cabo Verde", time: "Agora",     current: true  },
-            { device: "Safari · iPhone 15",   location: "Praia, Cabo Verde", time: "Há 2 horas", current: false },
-            { device: "Chrome · macOS",        location: "Lisboa, Portugal",  time: "Ontem",    current: false },
-          ].map((s) => (
+            { device: "Chrome · Windows 11", location: "Praia, Cabo Verde", time: "Agora",       current: true  },
+            { device: "Safari · iPhone 15",  location: "Praia, Cabo Verde", time: "Há 2 horas",  current: false },
+            { device: "Chrome · macOS",      location: "Lisboa, Portugal",  time: "Ontem",       current: false },
+          ].map(s => (
             <div key={s.device} className="px-5 py-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className={`w-2 h-2 rounded-full ${s.current ? "bg-emerald-500" : "bg-dim-300"}`} />
@@ -389,10 +468,10 @@ function SecurityTab({ saved, onSave }: { saved: boolean; onSave: () => void }) 
                   </div>
                 </div>
               </div>
-              {!s.current && (
-                <button className="text-[11px] font-semibold text-red-500 hover:text-red-700 transition-colors">Terminar</button>
-              )}
-              {s.current && <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">Esta sessão</span>}
+              {s.current
+                ? <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">Esta sessão</span>
+                : <button onClick={() => addMessage("Info", "Gestão de sessões disponível no portal Keycloak.")} className="text-[11px] font-semibold text-red-500 hover:text-red-700 transition-colors">Terminar</button>
+              }
             </div>
           ))}
         </div>
@@ -404,36 +483,37 @@ function SecurityTab({ saved, onSave }: { saved: boolean; onSave: () => void }) 
 /* ── Main page ───────────────────────────────────────────── */
 
 const TABS = [
-  { key: "clinic",    label: "Clínica",        icon: Building2 },
-  { key: "notifs",    label: "Notificações",    icon: Bell      },
-  { key: "users",     label: "Utilizadores",    icon: Users     },
-  { key: "integrations", label: "Integrações", icon: Plug      },
-  { key: "security",  label: "Segurança",       icon: Shield    },
+  { key: "clinic",        label: "Clínica",       icon: Building2 },
+  { key: "notifs",        label: "Notificações",   icon: Bell      },
+  { key: "users",         label: "Utilizadores",   icon: Users     },
+  { key: "integrations",  label: "Integrações",    icon: Plug      },
+  { key: "security",      label: "Segurança",      icon: Shield    },
 ] as const;
 
 type TabKey = typeof TABS[number]["key"];
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<TabKey>("clinic");
-  const [saved,     setSaved]     = useState(false);
 
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
-  };
+  const { data: settings = {}, isLoading } = useQuery<Record<string, unknown>>({
+    queryKey: ["settings"],
+    queryFn: () => fetch("/api/settings").then(r => r.json()),
+    staleTime: 60_000,
+  });
+
+  const clinic = settings.clinic ? (settings.clinic as ClinicSettings) : DEFAULT_CLINIC;
+  const notifs = settings.notifications ? (settings.notifications as NotifSettings) : {};
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Header */}
       <div>
         <h1 className="font-display text-[22px] font-bold text-dim-900">Configurações</h1>
         <p className="text-[13px] text-dim-500 mt-0.5">Gestão da clínica, notificações, integrações e segurança</p>
       </div>
 
       <div className="flex gap-5 items-start">
-        {/* Sidebar nav */}
         <nav className="w-48 shrink-0 flex flex-col gap-1">
-          {TABS.map((tab) => {
+          {TABS.map(tab => {
             const Icon = tab.icon;
             const active = activeTab === tab.key;
             return (
@@ -441,9 +521,8 @@ export default function SettingsPage() {
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
                 className={`flex items-center gap-2.5 w-full text-left px-3.5 py-2.5 rounded-[10px] text-[13px] font-medium transition-colors cursor-pointer ${
-                  active
-                    ? "bg-brand-700 text-white shadow-[0_1px_2px_rgba(0,0,0,.08)]"
-                    : "text-dim-600 hover:bg-dim-100 hover:text-dim-900"
+                  active ? "bg-brand-700 text-white shadow-[0_1px_2px_rgba(0,0,0,.08)]"
+                         : "text-dim-600 hover:bg-dim-100 hover:text-dim-900"
                 }`}
               >
                 <Icon style={{ width: 15, height: 15 }} className={active ? "opacity-90" : "opacity-60"} />
@@ -453,13 +532,24 @@ export default function SettingsPage() {
           })}
         </nav>
 
-        {/* Content */}
         <div className="flex-1 min-w-0">
-          {activeTab === "clinic"       && <ClinicTab        saved={saved} onSave={handleSave} />}
-          {activeTab === "notifs"       && <NotificationsTab saved={saved} onSave={handleSave} />}
-          {activeTab === "users"        && <UsersTab />}
-          {activeTab === "integrations" && <IntegrationsTab />}
-          {activeTab === "security"     && <SecurityTab      saved={saved} onSave={handleSave} />}
+          {isLoading ? (
+            <div className={`${CARD} animate-pulse`}>
+              <div className="px-5 py-5 flex flex-col gap-3">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="h-10 bg-dim-100 rounded-[10px]" />
+                ))}
+              </div>
+            </div>
+          ) : (
+            <>
+              {activeTab === "clinic"       && <ClinicTab initial={clinic} />}
+              {activeTab === "notifs"       && <NotificationsTab initial={notifs} />}
+              {activeTab === "users"        && <UsersTab />}
+              {activeTab === "integrations" && <IntegrationsTab />}
+              {activeTab === "security"     && <SecurityTab />}
+            </>
+          )}
         </div>
       </div>
     </div>
