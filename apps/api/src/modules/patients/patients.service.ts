@@ -157,6 +157,26 @@ export class PatientsService {
     );
   }
 
+  async findOrCreateByPhone(dto: {
+    fullName: string;
+    phone: string;
+    dateOfBirth: string;
+    email?: string;
+    gender: "male" | "female" | "other";
+  }) {
+    const normalizedPhone = this.normalizePhone(dto.phone);
+    const existing = await this.repo.findByPhone(normalizedPhone);
+    if (existing) return existing;
+    return this.create({
+      fullName: dto.fullName,
+      phone: dto.phone,
+      dateOfBirth: dto.dateOfBirth,
+      email: dto.email,
+      gender: dto.gender,
+      consentGiven: true,
+    });
+  }
+
   private normalizePhone(phone: string): string {
     const digits = phone.replace(/\D/g, "");
     return `+${digits}`;
