@@ -9,6 +9,8 @@ import { format } from "date-fns";
 import Link from "next/link";
 import { ArrowLeft, CalendarPlus, Clock } from "lucide-react";
 import { CreateAppointmentSchema, type CreateAppointmentDto, type TimeSlot } from "@cms/types";
+import { useMessage } from "../../../../components/ui/message-handler";
+import { validateScheduledAt, isWeekday } from "../../../../lib/validate-schedule";
 
 async function fetchAvailability(serviceId: string, staffId: string, date: string): Promise<TimeSlot[]> {
   const params = new URLSearchParams({ serviceId, staffId, date });
@@ -54,6 +56,7 @@ export default function NewAppointmentPage() {
   const searchParams = useSearchParams();
   const prefillPatientId = searchParams.get("patientId") ?? "";
 
+  const { addMessage } = useMessage();
   const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [selectedStaff, setSelectedStaff] = useState("");
   const [selectedService, setSelectedService] = useState("");
@@ -72,8 +75,32 @@ export default function NewAppointmentPage() {
 
   const mutation = useMutation({
     mutationFn: createAppointment,
-    onSuccess: () => router.push("/appointments"),
+    onSuccess: () => {
+      addMessage("Success", "Marcação confirmada com sucesso!");
+      router.push("/appointments");
+    },
+    onError: (err: Error) => {
+      addMessage("Error", err.message);
+    },
   });
+
+  function handleDateChange(dateStr: string) {
+    if (!isWeekday(dateStr)) {
+      addMessage("Warning", "Agendamentos apenas de segunda a sábado. Domingo não está disponível.");
+      return;
+    }
+    setSelectedDate(dateStr);
+    setSelectedSlot("");
+  }
+
+  function onSubmit(data: CreateAppointmentDto) {
+    const scheduleError = validateScheduledAt(data.scheduledAt);
+    if (scheduleError) {
+      addMessage("Error", scheduleError);
+      return;
+    }
+    mutation.mutate(data);
+  }
 
   const availableSlots = slots?.filter((s) => s.available) ?? [];
 
@@ -97,7 +124,7 @@ export default function NewAppointmentPage() {
       </div>
 
       <form
-        onSubmit={handleSubmit((data) => mutation.mutate(data))}
+        onSubmit={handleSubmit(onSubmit)}
         className={CARD}
       >
         <div className="px-6 py-4 border-b border-dim-100">
@@ -136,7 +163,7 @@ export default function NewAppointmentPage() {
             <input
               type="date"
               value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
+              onChange={(e) => handleDateChange(e.target.value)}
               className={inputCls}
             />
           </Field>
@@ -183,11 +210,6 @@ export default function NewAppointmentPage() {
         </div>
 
         <div className="px-6 py-4 border-t border-dim-100 bg-dim-50/60 rounded-b-[16px] flex flex-col gap-3">
-          {mutation.error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-[10px]">
-              <p className="text-[12px] text-red-700">{(mutation.error as Error).message}</p>
-            </div>
-          )}
           <div className="flex items-center gap-3">
             <button
               type="submit"

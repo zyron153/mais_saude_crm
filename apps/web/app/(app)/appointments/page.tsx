@@ -2,12 +2,14 @@
 
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { pt } from "date-fns/locale";
 import { Plus, CalendarDays, List, Clock, User, Stethoscope, DoorOpen, FileText } from "lucide-react";
 import { io } from "socket.io-client";
 import { Modal } from "../../../components/ui/modal";
+import { useMessage } from "../../../components/ui/message-handler";
+import { validateScheduledAt } from "../../../lib/validate-schedule";
 
 const CalendarView = dynamic(() => import("./_CalendarView"), {
   ssr: false,
@@ -87,6 +89,15 @@ const STATUS_PILL: Record<string, string> = {
   no_show:    "bg-red-100 text-red-600",
 };
 
+const TRANSITIONS: Record<string, { status: string; label: string; primary: boolean }[]> = {
+  pending:    [{ status: "confirmed",  label: "Confirmar",      primary: true  },
+               { status: "cancelled",  label: "Cancelar",       primary: false }],
+  confirmed:  [{ status: "checked_in", label: "Check-in feito", primary: true  },
+               { status: "cancelled",  label: "Cancelar",       primary: false }],
+  checked_in: [{ status: "completed",  label: "Concluída",      primary: true  },
+               { status: "no_show",    label: "Faltou",         primary: false }],
+};
+
 const CARD = "bg-white rounded-[16px] border border-dim-200 shadow-[0_1px_4px_rgba(0,0,0,.08),0_0_0_1px_rgba(0,0,0,.03)] overflow-hidden";
 
 const inputCls = "w-full border border-dim-200 rounded-[10px] px-3.5 py-2.5 text-[13px] text-dim-900 placeholder:text-dim-400 bg-white focus:outline-none focus:border-brand-500 focus:shadow-[0_0_0_3px_rgba(19,163,163,.12)] transition-all shadow-[0_1px_2px_rgba(0,0,0,.05)]";
@@ -99,8 +110,26 @@ export default function AppointmentsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [form, setForm] = useState(BLANK_APPT);
   const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  const { addMessage } = useMessage();
+
+  const statusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      fetch(`/api/appointments/${id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      }).then(async (r) => {
+        if (!r.ok) { const e = await r.json(); throw new Error(e.message ?? "Erro"); }
+        return r.json();
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["appointment", selectedId] });
+      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      addMessage("Success", "Estado atualizado com sucesso!");
+    },
+    onError: (err: Error) => addMessage("Error", err.message),
+  });
 
   const { data: patients } = useQuery<{ data: { id: string; fullName: string }[] }>({
     queryKey: ["patients-list"],
@@ -128,8 +157,14 @@ export default function AppointmentsPage() {
 
   async function addAppt() {
     if (!form.patientId || !form.staffId || !form.serviceId || !form.scheduledAt) return;
+
+    const scheduleError = validateScheduledAt(form.scheduledAt);
+    if (scheduleError) {
+      addMessage("Error", scheduleError);
+      return;
+    }
+
     setSubmitting(true);
-    setSubmitError(null);
     try {
       const res = await fetch("/api/appointments", {
         method: "POST",
@@ -144,14 +179,15 @@ export default function AppointmentsPage() {
         }),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message ?? "Erro ao criar marcação");
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message ?? "Erro ao criar marcação");
       }
       setForm(BLANK_APPT);
       setNewOpen(false);
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      addMessage("Success", "Marcação criada com sucesso!");
     } catch (e: unknown) {
-      setSubmitError(e instanceof Error ? e.message : "Erro desconhecido");
+      addMessage("Error", e instanceof Error ? e.message : "Erro desconhecido");
     } finally {
       setSubmitting(false);
     }
@@ -392,7 +428,7 @@ export default function AppointmentsPage() {
       )}
     </div>
 
-    <Modal open={newOpen} onClose={() => { setNewOpen(false); setSubmitError(null); }} title="Nova Marcação" description="Agende uma nova consulta ou procedimento" size="md">
+    <Modal open={newOpen} onClose={() => setNewOpen(false)} title="Nova Marcação" description="Agende uma nova consulta ou procedimento" size="md">
       <div className="px-6 py-5 grid grid-cols-2 gap-4">
         <div className="col-span-2">
           <label className="block text-[12px] font-semibold text-dim-700 mb-1.5">Paciente *</label>
@@ -429,9 +465,6 @@ export default function AppointmentsPage() {
           <label className="block text-[12px] font-semibold text-dim-700 mb-1.5">Notas</label>
           <textarea value={form.notes} onChange={(e) => set("notes", e.target.value)} rows={2} placeholder="Observações opcionais…" className={`${inputCls} resize-none`} />
         </div>
-        {submitError && (
-          <div className="col-span-2 text-[12px] text-red-600 bg-red-50 px-3 py-2 rounded-lg">{submitError}</div>
-        )}
       </div>
       <div className="px-6 py-4 border-t border-dim-100 flex items-center gap-3">
         <button
@@ -441,7 +474,7 @@ export default function AppointmentsPage() {
         >
           {submitting ? "A guardar…" : "Guardar Marcação"}
         </button>
-        <button onClick={() => { setNewOpen(false); setSubmitError(null); }} className="border border-dim-200 bg-white hover:bg-dim-50 text-dim-700 font-medium px-5 py-2.5 rounded-[10px] text-[13px] transition-colors">
+        <button onClick={() => setNewOpen(false)} className="border border-dim-200 bg-white hover:bg-dim-50 text-dim-700 font-medium px-5 py-2.5 rounded-[10px] text-[13px] transition-colors">
           Cancelar
         </button>
       </div>
@@ -478,8 +511,28 @@ export default function AppointmentsPage() {
               </div>
             </div>
           ))}
-          <div className="pt-3 text-[11px] text-dim-400">
-            Estado: <span className={`font-semibold px-2 py-0.5 rounded-full ml-1 ${STATUS_PILL[detail.status] ?? "bg-dim-100 text-dim-600"}`}>{STATUS_LEGEND.find((s) => s.key === detail.status)?.label ?? detail.status}</span>
+          <div className="pt-3 flex items-center justify-between gap-3 flex-wrap">
+            <div className="text-[11px] text-dim-400">
+              Estado: <span className={`font-semibold px-2 py-0.5 rounded-full ml-1 ${STATUS_PILL[detail.status] ?? "bg-dim-100 text-dim-600"}`}>{STATUS_LEGEND.find((s) => s.key === detail.status)?.label ?? detail.status}</span>
+            </div>
+            {TRANSITIONS[detail.status] && (
+              <div className="flex gap-2">
+                {TRANSITIONS[detail.status].map(({ status, label, primary }) => (
+                  <button
+                    key={status}
+                    disabled={statusMutation.isPending}
+                    onClick={() => statusMutation.mutate({ id: detail.id, status })}
+                    className={`text-[12px] font-semibold px-3 py-1.5 rounded-[8px] disabled:opacity-50 transition-colors ${
+                      primary
+                        ? "bg-brand-700 hover:bg-brand-800 text-white"
+                        : "border border-red-200 text-red-600 hover:bg-red-50"
+                    }`}
+                  >
+                    {statusMutation.isPending ? "…" : label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
