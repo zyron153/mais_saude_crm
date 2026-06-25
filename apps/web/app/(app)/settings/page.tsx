@@ -5,9 +5,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Building2, Bell, Users, Plug, Shield,
   AlertCircle, Clock, Phone, Mail, Globe,
-  Key, Lock, Eye, EyeOff, Check,
+  Key, Lock, Eye, EyeOff, Check, Plus,
 } from "lucide-react";
 import { useMessage } from "../../../components/ui/message-handler";
+import { Modal } from "../../../components/ui/modal";
 
 /* ── Types ───────────────────────────────────────────────── */
 
@@ -264,7 +265,161 @@ const ROLE_COLOR: Record<string, string> = {
   admin: "bg-violet-100 text-violet-800", corporate_hr: "bg-violet-100 text-violet-800",
 };
 
+const DAYS = [
+  { dow: 1, label: "Seg" }, { dow: 2, label: "Ter" }, { dow: 3, label: "Qua" },
+  { dow: 4, label: "Qui" }, { dow: 5, label: "Sex" }, { dow: 6, label: "Sáb" }, { dow: 0, label: "Dom" },
+];
+
+const ROLE_OPTIONS = [
+  { value: "doctor",       label: "Médico/a"        },
+  { value: "nurse",        label: "Enfermeiro/a"     },
+  { value: "receptionist", label: "Recepcionista"    },
+  { value: "lab_tech",     label: "Técnico/a Lab."   },
+  { value: "admin",        label: "Administrador/a"  },
+] as const;
+
+type NewUserForm = {
+  fullName: string; email: string; role: string;
+  phone: string; specialtyCode: string;
+  days: number[]; shiftStart: string; shiftEnd: string;
+};
+
+const BLANK_USER: NewUserForm = {
+  fullName: "", email: "", role: "receptionist",
+  phone: "", specialtyCode: "",
+  days: [1, 2, 3, 4, 5], shiftStart: "08:00", shiftEnd: "17:00",
+};
+
+function AddUserModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { addMessage } = useMessage();
+  const queryClient = useQueryClient();
+  const [form, setForm] = useState<NewUserForm>(BLANK_USER);
+  const [errs, setErrs] = useState<Record<string, string>>({});
+
+  function set<K extends keyof NewUserForm>(k: K, v: NewUserForm[K]) {
+    setForm(f => ({ ...f, [k]: v }));
+    setErrs(e => ({ ...e, [k]: "" }));
+  }
+  function toggleDay(dow: number) {
+    setForm(f => ({
+      ...f,
+      days: f.days.includes(dow) ? f.days.filter(d => d !== dow) : [...f.days, dow],
+    }));
+  }
+
+  const mutation = useMutation({
+    mutationFn: (body: object) => fetch("/api/staff", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then(async r => {
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.message ?? "Erro ao criar utilizador"); }
+      return r.json();
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["bff-staff"] });
+      addMessage("Success", "Utilizador criado com sucesso!");
+      setForm(BLANK_USER);
+      onClose();
+    },
+    onError: (e: Error) => addMessage("Error", e.message),
+  });
+
+  function submit(ev: React.FormEvent) {
+    ev.preventDefault();
+    const e2: Record<string, string> = {};
+    if (!form.fullName.trim()) e2.fullName = "Nome é obrigatório";
+    if (!form.email.trim()) e2.email = "Email é obrigatório";
+    if (Object.keys(e2).length) { setErrs(e2); return; }
+
+    mutation.mutate({
+      fullName: form.fullName.trim(),
+      email: form.email.trim(),
+      role: form.role,
+      phone: form.phone.trim() || undefined,
+      specialtyCode: form.specialtyCode.trim() || undefined,
+      availability: form.days.map(dow => ({
+        dayOfWeek: dow,
+        startTime: form.shiftStart,
+        endTime: form.shiftEnd,
+      })),
+    });
+  }
+
+  const needsSpecialty = form.role === "doctor" || form.role === "nurse";
+
+  return (
+    <Modal open={open} onClose={onClose} title="Novo Utilizador" description="Adicionar colaborador ao sistema" size="lg">
+      <form onSubmit={submit}>
+        <div className="px-6 py-5 grid grid-cols-2 gap-4">
+          <div className="col-span-2">
+            <Field label="Nome Completo *">
+              <input className={inputCls} value={form.fullName} onChange={e => set("fullName", e.target.value)} placeholder="Ex: Dra. Ana Silva" />
+              {errs.fullName && <p className="text-[11px] text-red-600 mt-1">{errs.fullName}</p>}
+            </Field>
+          </div>
+          <Field label="Email *">
+            <input type="email" className={inputCls} value={form.email} onChange={e => set("email", e.target.value)} placeholder="nome@maissaude.cv" />
+            {errs.email && <p className="text-[11px] text-red-600 mt-1">{errs.email}</p>}
+          </Field>
+          <Field label="Função">
+            <select className={inputCls} value={form.role} onChange={e => set("role", e.target.value)}>
+              {ROLE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </Field>
+          <Field label="Telefone">
+            <input className={inputCls} value={form.phone} onChange={e => set("phone", e.target.value)} placeholder="+238 991 0000" />
+          </Field>
+          {needsSpecialty && (
+            <Field label="Especialidade">
+              <input className={inputCls} value={form.specialtyCode} onChange={e => set("specialtyCode", e.target.value)} placeholder="Ex: Cardiologia" />
+            </Field>
+          )}
+          <div className={needsSpecialty ? "col-span-2" : "col-span-2"}>
+            <label className="block text-[12px] font-semibold text-dim-700 mb-2">Dias de Trabalho</label>
+            <div className="flex gap-1.5 flex-wrap">
+              {DAYS.map(({ dow, label }) => (
+                <button
+                  key={dow}
+                  type="button"
+                  onClick={() => toggleDay(dow)}
+                  className={`px-3 py-1.5 rounded-[8px] text-[11px] font-semibold transition-colors border ${
+                    form.days.includes(dow)
+                      ? "bg-brand-700 text-white border-brand-700"
+                      : "bg-white text-dim-500 border-dim-200 hover:border-dim-300"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <Field label="Início do Turno">
+            <input type="time" className={inputCls} value={form.shiftStart} onChange={e => set("shiftStart", e.target.value)} />
+          </Field>
+          <Field label="Fim do Turno">
+            <input type="time" className={inputCls} value={form.shiftEnd} onChange={e => set("shiftEnd", e.target.value)} />
+          </Field>
+        </div>
+        <div className="px-6 py-4 border-t border-dim-100 bg-dim-50/60 flex items-center gap-3">
+          <button
+            type="submit"
+            disabled={mutation.isPending}
+            className="bg-brand-700 hover:bg-brand-800 disabled:opacity-60 text-white font-semibold px-5 py-2.5 rounded-[10px] text-[13px] transition-colors shadow-[0_1px_2px_rgba(0,0,0,.08)]"
+          >
+            {mutation.isPending ? "A criar…" : "Criar Utilizador"}
+          </button>
+          <button type="button" onClick={onClose} className="border border-dim-200 bg-white hover:bg-dim-50 text-dim-700 font-medium px-5 py-2.5 rounded-[10px] text-[13px] transition-colors">
+            Cancelar
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 function UsersTab() {
+  const [addOpen, setAddOpen] = useState(false);
   const { data: staff = [], isLoading } = useQuery<ApiStaff[]>({
     queryKey: ["bff-staff"],
     queryFn: () => fetch("/api/bff/staff").then(r => r.json()),
@@ -272,61 +427,73 @@ function UsersTab() {
   });
 
   return (
-    <div className={CARD}>
-      <div className="flex items-center justify-between px-5 py-4 border-b border-dim-100">
-        <h3 className="font-display text-[14px] font-semibold text-dim-900">Utilizadores do Sistema</h3>
-        <span className="font-mono text-[11px] text-dim-400">{staff.length} colaboradores</span>
-      </div>
-      <table className="w-full border-collapse">
-        <thead>
-          <tr>
-            {["Colaborador", "Função", "Email", "Telefone", "Estado"].map(h => (
-              <th key={h} className="text-left text-[10px] font-bold uppercase tracking-[0.07em] text-dim-400 px-5 py-2.5 border-b border-dim-100 bg-dim-50">{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {isLoading ? (
-            Array.from({ length: 4 }).map((_, i) => (
-              <tr key={i} className="animate-pulse">
-                {[140, 80, 160, 100, 60].map((w, j) => (
-                  <td key={j} className="px-5 py-3.5 border-b border-dim-100">
-                    <div className="h-3 bg-dim-100 rounded" style={{ width: w }} />
+    <>
+      <div className={CARD}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-dim-100">
+          <div>
+            <h3 className="font-display text-[14px] font-semibold text-dim-900">Utilizadores do Sistema</h3>
+            <p className="text-[11px] text-dim-400 mt-0.5">{staff.length} colaboradores registados</p>
+          </div>
+          <button
+            onClick={() => setAddOpen(true)}
+            className="flex items-center gap-1.5 bg-brand-700 hover:bg-brand-800 text-white text-[12px] font-semibold px-3.5 py-2 rounded-[10px] transition-colors shadow-[0_1px_2px_rgba(0,0,0,.08)]"
+          >
+            <Plus style={{ width: 13, height: 13 }} />
+            Novo Utilizador
+          </button>
+        </div>
+        <table className="w-full border-collapse">
+          <thead>
+            <tr>
+              {["Colaborador", "Função", "Email", "Telefone", "Estado"].map(h => (
+                <th key={h} className="text-left text-[10px] font-bold uppercase tracking-[0.07em] text-dim-400 px-5 py-2.5 border-b border-dim-100 bg-dim-50">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <tr key={i} className="animate-pulse">
+                  {[140, 80, 160, 100, 60].map((w, j) => (
+                    <td key={j} className="px-5 py-3.5 border-b border-dim-100">
+                      <div className="h-3 bg-dim-100 rounded" style={{ width: w }} />
+                    </td>
+                  ))}
+                </tr>
+              ))
+            ) : staff.map(u => {
+              const initials = u.fullName.split(" ").filter(Boolean).slice(0, 2).map(n => n[0]).join("").toUpperCase();
+              const todayDow = new Date().getDay();
+              const onDuty = u.availability.some(a => a.dayOfWeek === todayDow);
+              return (
+                <tr key={u.id} className="hover:bg-dim-50 transition-colors">
+                  <td className="px-5 py-3.5 border-b border-dim-100">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-full bg-brand-100 text-brand-800 font-semibold text-[10px] flex items-center justify-center shrink-0">{initials}</div>
+                      <span className="text-[13px] font-medium text-dim-900">{u.fullName}</span>
+                    </div>
                   </td>
-                ))}
-              </tr>
-            ))
-          ) : staff.map(u => {
-            const initials = u.fullName.split(" ").filter(Boolean).slice(0, 2).map(n => n[0]).join("").toUpperCase();
-            const todayDow = new Date().getDay();
-            const onDuty = u.availability.some(a => a.dayOfWeek === todayDow);
-            return (
-              <tr key={u.id} className="hover:bg-dim-50 transition-colors">
-                <td className="px-5 py-3.5 border-b border-dim-100">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-full bg-brand-100 text-brand-800 font-semibold text-[10px] flex items-center justify-center shrink-0">{initials}</div>
-                    <span className="text-[13px] font-medium text-dim-900">{u.fullName}</span>
-                  </div>
-                </td>
-                <td className="px-5 py-3.5 border-b border-dim-100">
-                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${ROLE_COLOR[u.role] ?? "bg-dim-100 text-dim-600"}`}>
-                    {ROLE_LABEL[u.role] ?? u.role}
-                  </span>
-                </td>
-                <td className="px-5 py-3.5 border-b border-dim-100 font-mono text-[11px] text-dim-500">{u.email}</td>
-                <td className="px-5 py-3.5 border-b border-dim-100 font-mono text-[11px] text-dim-500">{u.phone ?? "—"}</td>
-                <td className="px-5 py-3.5 border-b border-dim-100">
-                  <div className={`inline-flex items-center gap-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-full ${onDuty ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/80" : "bg-dim-100 text-dim-400"}`}>
-                    <div className={`w-1.5 h-1.5 rounded-full ${onDuty ? "bg-emerald-500" : "bg-dim-300"}`} />
-                    {onDuty ? "Em serviço" : "Fora"}
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+                  <td className="px-5 py-3.5 border-b border-dim-100">
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${ROLE_COLOR[u.role] ?? "bg-dim-100 text-dim-600"}`}>
+                      {ROLE_LABEL[u.role] ?? u.role}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3.5 border-b border-dim-100 font-mono text-[11px] text-dim-500">{u.email}</td>
+                  <td className="px-5 py-3.5 border-b border-dim-100 font-mono text-[11px] text-dim-500">{u.phone ?? "—"}</td>
+                  <td className="px-5 py-3.5 border-b border-dim-100">
+                    <div className={`inline-flex items-center gap-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-full ${onDuty ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/80" : "bg-dim-100 text-dim-400"}`}>
+                      <div className={`w-1.5 h-1.5 rounded-full ${onDuty ? "bg-emerald-500" : "bg-dim-300"}`} />
+                      {onDuty ? "Em serviço" : "Fora"}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <AddUserModal open={addOpen} onClose={() => setAddOpen(false)} />
+    </>
   );
 }
 
