@@ -102,7 +102,7 @@ const CARD = "bg-white rounded-[16px] border border-dim-200 shadow-[0_1px_4px_rg
 
 const inputCls = "w-full border border-dim-200 rounded-[10px] px-3.5 py-2.5 text-[13px] text-dim-900 placeholder:text-dim-400 bg-white focus:outline-none focus:border-brand-500 focus:shadow-[0_0_0_3px_rgba(19,163,163,.12)] transition-all shadow-[0_1px_2px_rgba(0,0,0,.05)]";
 
-const BLANK_APPT = { patientId: "", serviceId: "", staffId: "", scheduledAt: "", notes: "" };
+const BLANK_APPT = { patientId: "", serviceId: "", staffId: "", apptDate: "", apptTime: "", notes: "" };
 
 export default function AppointmentsPage() {
   const [view, setView] = useState<"calendar" | "list">("calendar");
@@ -155,10 +155,20 @@ export default function AppointmentsPage() {
 
   function set(k: keyof typeof BLANK_APPT, v: string) { setForm((f) => ({ ...f, [k]: v })); }
 
-  async function addAppt() {
-    if (!form.patientId || !form.staffId || !form.serviceId || !form.scheduledAt) return;
+  function handleDateClick(dateStr: string, isTimeGrid: boolean) {
+    setForm(f => ({
+      ...f,
+      apptDate: dateStr.slice(0, 10),
+      apptTime: isTimeGrid ? dateStr.slice(11, 16) : "",
+    }));
+    setNewOpen(true);
+  }
 
-    const scheduleError = validateScheduledAt(form.scheduledAt);
+  async function addAppt() {
+    if (!form.patientId || !form.staffId || !form.serviceId || !form.apptDate || !form.apptTime) return;
+
+    const scheduledAt = `${form.apptDate}T${form.apptTime}`;
+    const scheduleError = validateScheduledAt(scheduledAt);
     if (scheduleError) {
       addMessage("Error", scheduleError);
       return;
@@ -173,7 +183,7 @@ export default function AppointmentsPage() {
           patientId: form.patientId,
           staffId: form.staffId,
           serviceId: form.serviceId,
-          scheduledAt: new Date(form.scheduledAt).toISOString(),
+          scheduledAt: new Date(scheduledAt).toISOString(),
           notes: form.notes || undefined,
           source: "web",
         }),
@@ -346,7 +356,7 @@ export default function AppointmentsPage() {
       {/* Calendar view */}
       {view === "calendar" && (
         <div className={CARD}>
-          <CalendarView events={events} onEventClick={setSelectedId} />
+          <CalendarView events={events} onEventClick={setSelectedId} onDateClick={handleDateClick} />
         </div>
       )}
 
@@ -457,9 +467,13 @@ export default function AppointmentsPage() {
             ))}
           </select>
         </div>
-        <div className="col-span-2">
-          <label className="block text-[12px] font-semibold text-dim-700 mb-1.5">Data e Hora *</label>
-          <input type="datetime-local" value={form.scheduledAt} onChange={(e) => set("scheduledAt", e.target.value)} className={inputCls} />
+        <div>
+          <label className="block text-[12px] font-semibold text-dim-700 mb-1.5">Data *</label>
+          <input type="date" value={form.apptDate} onChange={(e) => set("apptDate", e.target.value)} className={inputCls} />
+        </div>
+        <div>
+          <label className="block text-[12px] font-semibold text-dim-700 mb-1.5">Hora *</label>
+          <input type="time" value={form.apptTime} onChange={(e) => set("apptTime", e.target.value)} className={inputCls} />
         </div>
         <div className="col-span-2">
           <label className="block text-[12px] font-semibold text-dim-700 mb-1.5">Notas</label>
@@ -469,7 +483,7 @@ export default function AppointmentsPage() {
       <div className="px-6 py-4 border-t border-dim-100 flex items-center gap-3">
         <button
           onClick={addAppt}
-          disabled={submitting || !form.patientId || !form.staffId || !form.serviceId || !form.scheduledAt}
+          disabled={submitting || !form.patientId || !form.staffId || !form.serviceId || !form.apptDate || !form.apptTime}
           className="bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-semibold px-5 py-2.5 rounded-[10px] text-[13px] transition-colors"
         >
           {submitting ? "A guardar…" : "Guardar Marcação"}
