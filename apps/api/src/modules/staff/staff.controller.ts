@@ -1,8 +1,8 @@
-import { Controller, Get, Post, Body, Param, ParseUUIDPipe } from "@nestjs/common";
+import { Controller, Get, Post, Patch, Body, Param, ParseUUIDPipe } from "@nestjs/common";
 import { StaffService } from "./staff.service";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
 import { Roles } from "../../common/decorators/roles.decorator";
-import { CreateStaffSchema, CreateStaffDto } from "@cms/types";
+import { CreateStaffSchema, CreateStaffDto, UpdateStaffSchema, UpdateStaffDto } from "@cms/types";
 
 @Controller("staff")
 @Roles("admin", "receptionist", "doctor", "nurse")
@@ -23,5 +23,14 @@ export class StaffController {
   @Roles("admin")
   create(@Body(new ZodValidationPipe(CreateStaffSchema)) dto: CreateStaffDto) {
     return this.service.create(dto);
+  }
+
+  @Patch(":id")
+  @Roles("admin")
+  update(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(UpdateStaffSchema)) dto: UpdateStaffDto,
+  ) {
+    return this.service.update(id, dto);
   }
 }

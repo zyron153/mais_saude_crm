@@ -15,3 +15,6 @@ export const CreateStaffSchema = z.object({
   availability: z.array(AvailabilitySchema).optional(),
 });
 export type CreateStaffDto = z.infer<typeof CreateStaffSchema>;
+
+export const UpdateStaffSchema = CreateStaffSchema.partial();
+export type UpdateStaffDto = z.infer<typeof UpdateStaffSchema>;

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Users2, Stethoscope, UserCheck, Clock, Phone, Mail, ChevronRight, Plus, X } from "lucide-react";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Users2, Stethoscope, UserCheck, Clock, Phone, Mail, ChevronRight, Plus } from "lucide-react";
 import { Modal } from "../../../components/ui/modal";
 import { useMessage } from "../../../components/ui/message-handler";
 
@@ -13,7 +13,7 @@ type StaffMember = {
   specialty?: string;
   phone: string;
   email: string;
-  shift: { start: string; end: string; days: string };
+  shift: { start: string; end: string; days: string; dayNums: number[] };
   status: "on_duty" | "off_duty" | "on_leave";
   appointmentsToday: number;
   initials: string;
@@ -37,10 +37,15 @@ const DB_ROLE_MAP: Record<string, StaffMember["role"]> = {
   admin: "receptionist", corporate_hr: "receptionist",
 };
 
+const UI_TO_DB_ROLE: Record<string, string> = {
+  doctor: "doctor", nurse: "nurse", receptionist: "receptionist", technician: "lab_tech",
+};
+
 function toUiMember(s: ApiStaff, idx: number): StaffMember {
   const todayDow = new Date().getDay();
   const todayAvail = s.availability.filter((a) => a.dayOfWeek === todayDow);
-  const allDays = [...new Set(s.availability.map((a) => a.dayOfWeek))].sort().map((d) => DOW_NAMES[d]).join(", ");
+  const dayNums = [...new Set(s.availability.map((a) => a.dayOfWeek))].sort();
+  const allDays = dayNums.map((d) => DOW_NAMES[d]).join(", ");
   return {
     id: s.id,
     name: s.fullName,
@@ -52,6 +57,7 @@ function toUiMember(s: ApiStaff, idx: number): StaffMember {
       start: todayAvail[0]?.startTime ?? "—",
       end:   todayAvail[0]?.endTime   ?? "—",
       days:  allDays || "—",
+      dayNums,
     },
     status: todayAvail.length > 0 ? "on_duty" : "off_duty",
     appointmentsToday: 0,
@@ -74,6 +80,10 @@ const STATUS_META: Record<string, { label: string; cls: string; dot: string }> =
 };
 
 const COLORS = ["bg-brand-700","bg-violet-700","bg-blue-700","bg-emerald-700","bg-teal-700","bg-amber-700","bg-orange-700","bg-rose-700","bg-pink-700","bg-indigo-700"];
+const DAYS_OF_WEEK = [
+  { dow: 1, label: "Seg" }, { dow: 2, label: "Ter" }, { dow: 3, label: "Qua" },
+  { dow: 4, label: "Qui" }, { dow: 5, label: "Sex" }, { dow: 6, label: "Sáb" }, { dow: 0, label: "Dom" },
+];
 
 function makeInitials(name: string) {
   return name.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
@@ -96,20 +106,36 @@ function FieldRow({ label, required, error, children }: {
   );
 }
 
-const BLANK_FORM = { name: "", role: "doctor" as StaffMember["role"], specialty: "", phone: "", email: "", shiftStart: "08:00", shiftEnd: "16:00", shiftDays: "Seg – Sex" };
+type FormValues = {
+  name: string; role: StaffMember["role"]; specialty: string;
+  phone: string; email: string;
+  shiftStart: string; shiftEnd: string; days: number[];
+};
 
-function StaffForm({ initialValues, onSave, onCancel, submitLabel }: {
-  initialValues?: typeof BLANK_FORM;
-  onSave: (v: typeof BLANK_FORM) => void;
+const BLANK_FORM: FormValues = {
+  name: "", role: "doctor", specialty: "", phone: "", email: "",
+  shiftStart: "08:00", shiftEnd: "17:00", days: [1, 2, 3, 4, 5],
+};
+
+function StaffForm({ initialValues, onSave, onCancel, submitLabel, saving }: {
+  initialValues?: FormValues;
+  onSave: (v: FormValues) => void;
   onCancel: () => void;
   submitLabel: string;
+  saving?: boolean;
 }) {
-  const [form, setForm] = useState(initialValues ?? BLANK_FORM);
+  const [form, setForm] = useState<FormValues>(initialValues ?? BLANK_FORM);
   const [errs, setErrs] = useState<Record<string, string>>({});
 
-  function set(k: keyof typeof BLANK_FORM, v: string) {
+  function set<K extends keyof FormValues>(k: K, v: FormValues[K]) {
     setForm((prev) => ({ ...prev, [k]: v }));
     setErrs((prev) => ({ ...prev, [k]: "" }));
+  }
+  function toggleDay(dow: number) {
+    setForm((f) => ({
+      ...f,
+      days: f.days.includes(dow) ? f.days.filter((d) => d !== dow) : [...f.days, dow],
+    }));
   }
 
   function submit(e: React.FormEvent) {
@@ -118,7 +144,6 @@ function StaffForm({ initialValues, onSave, onCancel, submitLabel }: {
     if (!form.name.trim()) e2.name = "Nome é obrigatório";
     if (!form.phone.trim()) e2.phone = "Telefone é obrigatório";
     if (!form.email.trim()) e2.email = "Email é obrigatório";
-    if (!form.shiftDays.trim()) e2.shiftDays = "Dias são obrigatórios";
     if (Object.keys(e2).length) { setErrs(e2); return; }
     onSave(form);
   }
@@ -153,6 +178,26 @@ function StaffForm({ initialValues, onSave, onCancel, submitLabel }: {
           <input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="nome@maissaudecv.com" className={inputCls} />
         </FieldRow>
 
+        <div className="col-span-2">
+          <label className="block text-[12px] font-semibold text-dim-700 mb-2">Dias de Trabalho</label>
+          <div className="flex gap-1.5 flex-wrap">
+            {DAYS_OF_WEEK.map(({ dow, label }) => (
+              <button
+                key={dow}
+                type="button"
+                onClick={() => toggleDay(dow)}
+                className={`px-3 py-1.5 rounded-[8px] text-[11px] font-semibold transition-colors border ${
+                  form.days.includes(dow)
+                    ? "bg-brand-700 text-white border-brand-700"
+                    : "bg-white text-dim-500 border-dim-200 hover:border-dim-300"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <FieldRow label="Início do Turno">
           <input type="time" value={form.shiftStart} onChange={(e) => set("shiftStart", e.target.value)} className={inputCls} />
         </FieldRow>
@@ -160,17 +205,15 @@ function StaffForm({ initialValues, onSave, onCancel, submitLabel }: {
         <FieldRow label="Fim do Turno">
           <input type="time" value={form.shiftEnd} onChange={(e) => set("shiftEnd", e.target.value)} className={inputCls} />
         </FieldRow>
-
-        <div className="col-span-2">
-          <FieldRow label="Dias de Trabalho" required error={errs.shiftDays}>
-            <input value={form.shiftDays} onChange={(e) => set("shiftDays", e.target.value)} placeholder="Ex: Seg – Sex" className={inputCls} />
-          </FieldRow>
-        </div>
       </div>
 
       <div className="px-6 py-4 border-t border-dim-100 bg-dim-50/60 flex items-center gap-3">
-        <button type="submit" className="bg-brand-700 hover:bg-brand-800 text-white font-semibold px-5 py-2.5 rounded-[10px] text-[13px] transition-colors shadow-[0_1px_2px_rgba(0,0,0,.08)]">
-          {submitLabel}
+        <button
+          type="submit"
+          disabled={saving}
+          className="bg-brand-700 hover:bg-brand-800 disabled:opacity-60 text-white font-semibold px-5 py-2.5 rounded-[10px] text-[13px] transition-colors shadow-[0_1px_2px_rgba(0,0,0,.08)]"
+        >
+          {saving ? "A guardar…" : submitLabel}
         </button>
         <button type="button" onClick={onCancel} className="border border-dim-200 bg-white hover:bg-dim-50 text-dim-700 font-medium px-5 py-2.5 rounded-[10px] text-[13px] transition-colors">
           Cancelar
@@ -182,60 +225,83 @@ function StaffForm({ initialValues, onSave, onCancel, submitLabel }: {
 
 const CARD = "bg-white rounded-[16px] border border-dim-200 shadow-[0_1px_4px_rgba(0,0,0,.08),0_0_0_1px_rgba(0,0,0,.03)] overflow-hidden";
 
+function toApiBody(form: FormValues) {
+  return {
+    fullName: form.name.trim(),
+    email: form.email.trim(),
+    role: UI_TO_DB_ROLE[form.role] ?? form.role,
+    phone: form.phone.trim() || undefined,
+    specialtyCode: form.specialty.trim() || undefined,
+    availability: form.days.map((dow) => ({
+      dayOfWeek: dow,
+      startTime: form.shiftStart,
+      endTime: form.shiftEnd,
+    })),
+  };
+}
+
+function toFormValues(m: StaffMember): FormValues {
+  return {
+    name: m.name,
+    role: m.role,
+    specialty: m.specialty ?? "",
+    phone: m.phone === "—" ? "" : m.phone,
+    email: m.email,
+    shiftStart: m.shift.start === "—" ? "08:00" : m.shift.start,
+    shiftEnd:   m.shift.end   === "—" ? "17:00" : m.shift.end,
+    days: m.shift.dayNums,
+  };
+}
+
 export default function StaffPage() {
   const { addMessage } = useMessage();
-  const [staff, setStaff] = useState<StaffMember[]>([]);
+  const queryClient = useQueryClient();
   const [newOpen, setNewOpen] = useState(false);
+  const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
 
-  const { data: apiStaff, isLoading } = useQuery<ApiStaff[]>({
+  const { data: apiStaff = [], isLoading } = useQuery<ApiStaff[]>({
     queryKey: ["bff-staff"],
     queryFn: () => fetch("/api/bff/staff").then((r) => r.json()),
   });
 
-  useEffect(() => {
-    if (apiStaff) setStaff(apiStaff.map(toUiMember));
-  }, [apiStaff]);
-  const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
+  const staff = apiStaff.map(toUiMember);
 
-  const onDuty      = staff.filter((s) => s.status === "on_duty").length;
-  const doctors     = staff.filter((s) => s.role === "doctor").length;
-  const nurses      = staff.filter((s) => s.role === "nurse").length;
-  const totalAppts  = staff.filter((s) => s.status === "on_duty").reduce((sum, s) => sum + s.appointmentsToday, 0);
+  const createMutation = useMutation({
+    mutationFn: (body: object) => fetch("/api/staff", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then(async (r) => {
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.message ?? "Erro ao criar colaborador"); }
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["bff-staff"] });
+      addMessage("Success", "Colaborador adicionado com sucesso!");
+      setNewOpen(false);
+    },
+    onError: (e: Error) => addMessage("Error", e.message),
+  });
 
-  function addStaff(form: typeof BLANK_FORM) {
-    const color = COLORS[staff.length % COLORS.length];
-    const newMember: StaffMember = {
-      id: `s${Date.now()}`,
-      name: form.name,
-      role: form.role,
-      specialty: form.specialty || undefined,
-      phone: form.phone,
-      email: form.email,
-      shift: { start: form.shiftStart, end: form.shiftEnd, days: form.shiftDays },
-      status: "off_duty",
-      appointmentsToday: 0,
-      initials: makeInitials(form.name),
-      color,
-    };
-    setStaff((prev) => [...prev, newMember]);
-    setNewOpen(false);
-    addMessage("Success", "Colaborador adicionado com sucesso!");
-  }
+  const editMutation = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: object }) => fetch(`/api/staff/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then(async (r) => {
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.message ?? "Erro ao guardar alterações"); }
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["bff-staff"] });
+      addMessage("Success", "Alterações guardadas com sucesso!");
+      setEditingStaff(null);
+    },
+    onError: (e: Error) => addMessage("Error", e.message),
+  });
 
-  function saveEdit(form: typeof BLANK_FORM) {
-    if (!editingStaff) return;
-    setStaff((prev) => prev.map((s) =>
-      s.id === editingStaff.id
-        ? { ...s, name: form.name, role: form.role, specialty: form.specialty || undefined, phone: form.phone, email: form.email, shift: { start: form.shiftStart, end: form.shiftEnd, days: form.shiftDays }, initials: makeInitials(form.name) }
-        : s
-    ));
-    setEditingStaff(null);
-    addMessage("Success", "Alterações guardadas com sucesso!");
-  }
-
-  function toFormValues(m: StaffMember): typeof BLANK_FORM {
-    return { name: m.name, role: m.role, specialty: m.specialty ?? "", phone: m.phone, email: m.email, shiftStart: m.shift.start, shiftEnd: m.shift.end, shiftDays: m.shift.days };
-  }
+  const onDuty     = staff.filter((s) => s.status === "on_duty").length;
+  const doctors    = staff.filter((s) => s.role === "doctor").length;
+  const nurses     = staff.filter((s) => s.role === "nurse").length;
+  const totalAppts = staff.filter((s) => s.status === "on_duty").reduce((sum, s) => sum + s.appointmentsToday, 0);
 
   return (
     <>
@@ -444,7 +510,12 @@ export default function StaffPage() {
 
       {/* New staff modal */}
       <Modal open={newOpen} onClose={() => setNewOpen(false)} title="Novo Colaborador" description="Adicione um novo membro à equipa" size="lg">
-        <StaffForm onSave={addStaff} onCancel={() => setNewOpen(false)} submitLabel="Adicionar Colaborador" />
+        <StaffForm
+          onSave={(form) => createMutation.mutate(toApiBody(form))}
+          onCancel={() => setNewOpen(false)}
+          submitLabel="Adicionar Colaborador"
+          saving={createMutation.isPending}
+        />
       </Modal>
 
       {/* Edit staff modal */}
@@ -458,9 +529,10 @@ export default function StaffPage() {
         {editingStaff && (
           <StaffForm
             initialValues={toFormValues(editingStaff)}
-            onSave={saveEdit}
+            onSave={(form) => editMutation.mutate({ id: editingStaff.id, body: toApiBody(form) })}
             onCancel={() => setEditingStaff(null)}
             submitLabel="Guardar Alterações"
+            saving={editMutation.isPending}
           />
         )}
       </Modal>

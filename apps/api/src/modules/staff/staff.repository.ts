@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { randomUUID } from "crypto";
 import { PrismaService } from "../../prisma/prisma.service";
-import { CreateStaffDto } from "@cms/types";
+import { CreateStaffDto, UpdateStaffDto } from "@cms/types";
 
 const STAFF_SELECT = {
   id: true,
@@ -31,6 +31,33 @@ export class StaffRepository {
   findById(id: string) {
     return this.prisma.staff.findFirst({
       where: { id, deletedAt: null },
+      select: STAFF_SELECT,
+    });
+  }
+
+  update(id: string, dto: UpdateStaffDto) {
+    const avail = dto.availability;
+    return this.prisma.staff.update({
+      where: { id },
+      data: {
+        ...(dto.fullName !== undefined && { fullName: dto.fullName }),
+        ...(dto.email !== undefined && { email: dto.email }),
+        ...(dto.role !== undefined && { role: dto.role }),
+        ...(dto.phone !== undefined && { phone: dto.phone ?? null }),
+        ...(dto.specialtyCode !== undefined && { specialtyCode: dto.specialtyCode ?? null }),
+        ...(avail !== undefined && {
+          availability: {
+            deleteMany: {},
+            createMany: {
+              data: avail.map((a) => ({
+                dayOfWeek: a.dayOfWeek,
+                startTime: a.startTime,
+                endTime: a.endTime,
+              })),
+            },
+          },
+        }),
+      },
       select: STAFF_SELECT,
     });
   }
