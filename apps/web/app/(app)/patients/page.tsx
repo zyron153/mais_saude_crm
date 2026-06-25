@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -163,6 +163,231 @@ function NewPatientModal({ open, onClose }: { open: boolean; onClose: () => void
   );
 }
 
+// ── Plan Modal ─────────────────────────────────────────────────
+
+type PlanProduct = { id: string; name: string; code: string; monthlyFee: number; company: { id: string; name: string } | null };
+type HealthPlan  = { id: string; planNumber: string; startDate: string; endDate?: string | null; active: boolean; product: PlanProduct; company: { name: string } | null };
+
+function PlanModal({ patient, onClose }: { patient: Patient; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const hasplan = !!patient.healthPlanId;
+  const [mode, setMode] = useState<"view" | "edit">(hasplan ? "view" : "edit");
+  const TODAY = new Date().toISOString().split("T")[0];
+  const [form, setForm] = useState({ productId: "", planNumber: "", startDate: TODAY });
+  const [removeConfirm, setRemoveConfirm] = useState(false);
+  const [err, setErr] = useState("");
+  const autoFillProductRef = useRef<string>("");
+
+  const { data: products = [] } = useQuery<PlanProduct[]>({
+    queryKey: ["health-plan-products"],
+    queryFn:  () => fetch("/api/health-plans/products").then(r => r.json()),
+    staleTime: 120_000,
+  });
+
+  const { data: allPlans = [], isSuccess: plansLoaded } = useQuery<HealthPlan[]>({
+    queryKey: ["health-plans", "all"],
+    queryFn:  () => fetch("/api/health-plans").then(r => r.json()),
+    enabled:  mode === "edit",
+    staleTime: 30_000,
+  });
+
+  const selectedProduct = products.find(p => p.id === form.productId);
+
+  // Auto-fill plan number when product changes or plans finish loading
+  useEffect(() => {
+    if (!form.productId || !selectedProduct || !plansLoaded) return;
+    if (form.productId === autoFillProductRef.current) return;
+    autoFillProductRef.current = form.productId;
+    const year = new Date().getFullYear();
+    const count = allPlans.filter(
+      p => p.product.id === form.productId &&
+      new Date(p.startDate).getFullYear() === year
+    ).length;
+    setForm(f => ({ ...f, planNumber: `${selectedProduct.code}-${year}-${String(count + 1).padStart(3, "0")}` }));
+  }, [form.productId, plansLoaded]); // eslint-disable-line
+
+  const { data: currentPlan, isLoading: planLoading } = useQuery<HealthPlan>({
+    queryKey: ["health-plan", patient.healthPlanId],
+    queryFn:  () => fetch(`/api/health-plans/${patient.healthPlanId}`).then(r => r.json()),
+    enabled:  hasplan,
+    staleTime: 60_000,
+  });
+
+  function invalidate() {
+    queryClient.invalidateQueries({ queryKey: ["patients"] });
+    queryClient.invalidateQueries({ queryKey: ["health-plan-products"] });
+    queryClient.invalidateQueries({ queryKey: ["health-plans"] });
+  }
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      if (!form.productId || !form.planNumber || !form.startDate) throw new Error("Preencha todos os campos obrigatórios");
+      const plan = await fetch("/api/health-plans", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId: form.productId, holderPatientId: patient.id, planNumber: form.planNumber, startDate: form.startDate }),
+      }).then(async r => { if (!r.ok) { const e = await r.json(); throw new Error(e.message ?? "Erro ao criar plano"); } return r.json(); });
+      await fetch(`/api/patients/${patient.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ healthPlanId: plan.id }),
+      }).then(async r => { if (!r.ok) { const e = await r.json(); throw new Error(e.message ?? "Erro ao associar plano"); } });
+    },
+    onSuccess: () => { invalidate(); onClose(); },
+    onError: (e: Error) => setErr(e.message),
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: () => fetch(`/api/patients/${patient.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ healthPlanId: null }),
+    }).then(async r => { if (!r.ok) { const e = await r.json(); throw new Error(e.message ?? "Erro ao remover plano"); } }),
+    onSuccess: () => { invalidate(); onClose(); },
+    onError: (e: Error) => setErr(e.message),
+  });
+
+  const inputCls = "w-full border border-dim-200 rounded-[10px] px-3.5 py-2.5 text-[13px] text-dim-900 placeholder:text-dim-400 bg-white focus:outline-none focus:border-brand-500 focus:shadow-[0_0_0_3px_rgba(19,163,163,.12)] transition-all shadow-[0_1px_2px_rgba(0,0,0,.05)]";
+
+  return (
+    <Modal open onClose={onClose} title="Plano de Saúde" description={patient.fullName}>
+      <div className="px-6 py-5 flex flex-col gap-4">
+
+        {/* Current plan view */}
+        {mode === "view" && (
+          planLoading ? (
+            <div className="animate-pulse space-y-2">
+              <div className="h-4 bg-dim-100 rounded w-3/4" />
+              <div className="h-4 bg-dim-100 rounded w-1/2" />
+            </div>
+          ) : currentPlan ? (
+            <>
+              <div className="bg-brand-50 border border-brand-100 rounded-[12px] p-4 flex flex-col gap-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold uppercase tracking-[0.07em] text-brand-600">Plano Ativo</span>
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${currentPlan.active ? "bg-emerald-100 text-emerald-700" : "bg-dim-100 text-dim-500"}`}>
+                    {currentPlan.active ? "Ativo" : "Inativo"}
+                  </span>
+                </div>
+                <p className="text-[15px] font-bold text-dim-900">{currentPlan.product.name}</p>
+                <div className="grid grid-cols-2 gap-1.5 text-[12px] text-dim-600">
+                  <span>Nº do Plano</span>
+                  <span className="font-mono font-semibold text-dim-800">{currentPlan.planNumber}</span>
+                  <span>Início</span>
+                  <span className="font-mono font-semibold text-dim-800">{new Date(currentPlan.startDate).toLocaleDateString("pt-CV")}</span>
+                  {currentPlan.endDate && (
+                    <>
+                      <span>Validade</span>
+                      <span className="font-mono font-semibold text-dim-800">{new Date(currentPlan.endDate).toLocaleDateString("pt-CV")}</span>
+                    </>
+                  )}
+                  <span>Mensalidade</span>
+                  <span className="font-mono font-semibold text-dim-800">{Number(currentPlan.product.monthlyFee).toLocaleString("pt-CV")} CVE/mês</span>
+                  {currentPlan.company && (
+                    <>
+                      <span>Seguradora</span>
+                      <span className="font-semibold text-dim-800">{currentPlan.company.name}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {removeConfirm ? (
+                <div className="bg-red-50 border border-red-200 rounded-[10px] p-3.5 flex flex-col gap-2.5">
+                  <p className="text-[12px] text-red-700 font-medium">Confirmar remoção do plano de {patient.fullName}?</p>
+                  <div className="flex gap-2">
+                    <button onClick={() => removeMutation.mutate()} disabled={removeMutation.isPending}
+                      className="flex-1 text-[12px] font-semibold py-1.5 rounded-[8px] bg-red-600 hover:bg-red-700 text-white transition-colors disabled:opacity-50">
+                      {removeMutation.isPending ? "A remover…" : "Confirmar"}
+                    </button>
+                    <button onClick={() => setRemoveConfirm(false)}
+                      className="flex-1 text-[12px] font-semibold py-1.5 rounded-[8px] border border-dim-200 text-dim-700 hover:bg-dim-50 transition-colors">
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <button onClick={() => setMode("edit")}
+                    className="flex-1 text-[12px] font-semibold py-2 rounded-[10px] bg-brand-700 hover:bg-brand-800 text-white transition-colors">
+                    Alterar Plano
+                  </button>
+                  <button onClick={() => setRemoveConfirm(true)}
+                    className="flex-1 text-[12px] font-semibold py-2 rounded-[10px] border border-red-200 text-red-600 hover:bg-red-50 transition-colors">
+                    Remover Plano
+                  </button>
+                </div>
+              )}
+            </>
+          ) : null
+        )}
+
+        {/* Create / change form */}
+        {mode === "edit" && (
+          <>
+            {hasplan && (
+              <div className="flex items-center gap-2 text-[12px] text-dim-500">
+                <button onClick={() => setMode("view")} className="text-brand-600 hover:text-brand-700 font-semibold text-[11px]">← Voltar</button>
+                <span>·</span>
+                <span>A substituir o plano atual</span>
+              </div>
+            )}
+            <div>
+              <label className="block text-[12px] font-semibold text-dim-700 mb-1.5">Tipo de Plano <span className="text-red-500">*</span></label>
+              <select value={form.productId} onChange={e => setForm(f => ({ ...f, productId: e.target.value }))} className={inputCls}>
+                <option value="">Selecionar produto…</option>
+                {products.map(p => (
+                  <option key={p.id} value={p.id}>{p.name} — {Number(p.monthlyFee).toLocaleString("pt-CV")} CVE/mês</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-[12px] font-semibold text-dim-700">Número do Plano <span className="text-red-500">*</span></label>
+                {form.planNumber && <span className="text-[10px] text-dim-400 font-medium">Gerado automaticamente · editável</span>}
+              </div>
+              <input
+                value={form.planNumber}
+                onChange={e => {
+                  autoFillProductRef.current = form.productId; // lock: treat as manual
+                  setForm(f => ({ ...f, planNumber: e.target.value }));
+                }}
+                placeholder={selectedProduct ? `${selectedProduct.code}-${new Date().getFullYear()}-001` : "Selecione um produto primeiro"}
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label className="block text-[12px] font-semibold text-dim-700 mb-1.5">Data de Início <span className="text-red-500">*</span></label>
+              <input
+                type="date"
+                value={form.startDate}
+                max={TODAY}
+                onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))}
+                className={`${inputCls}${form.startDate > TODAY ? " border-red-300 focus:border-red-400 focus:shadow-[0_0_0_3px_rgba(220,38,38,.12)]" : ""}`}
+              />
+              {form.startDate > TODAY && (
+                <p className="text-[11px] text-red-600 mt-1.5">A data de início não pode ser uma data futura.</p>
+              )}
+            </div>
+
+            {err && <p className="text-[12px] text-red-600 bg-red-50 border border-red-200 rounded-[8px] px-3 py-2">{err}</p>}
+
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending || !form.productId || !form.planNumber || !form.startDate || form.startDate > TODAY}
+                className="flex-1 text-[12px] font-semibold py-2 rounded-[10px] bg-brand-700 hover:bg-brand-800 text-white transition-colors disabled:opacity-50">
+                {saveMutation.isPending ? "A guardar…" : hasplan ? "Substituir Plano" : "Adicionar Plano"}
+              </button>
+              <button onClick={onClose} className="flex-1 text-[12px] font-semibold py-2 rounded-[10px] border border-dim-200 text-dim-700 hover:bg-dim-50 transition-colors">
+                Cancelar
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
 // ── Skeleton row ───────────────────────────────────────────────
 
 function SkeletonRow() {
@@ -199,6 +424,7 @@ export default function PatientsPage() {
   const [page, setPage] = useState(1);
   const [planFilter, setPlanFilter] = useState("all");
   const [newPatientOpen, setNewPatientOpen] = useState(false);
+  const [planPatient, setPlanPatient] = useState<Patient | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["patients", search, planFilter, page],
@@ -323,12 +549,20 @@ export default function PatientsPage() {
                             )}
                           </td>
                           <td className="px-5 py-3.5 border-b border-dim-100 text-right">
-                            <Link
-                              href={`/patients/${patient.id}`}
-                              className="text-[11px] font-semibold text-brand-600 hover:text-brand-700 transition-colors opacity-0 group-hover:opacity-100"
-                            >
-                              Ver perfil →
-                            </Link>
+                            <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={() => setPlanPatient(patient)}
+                                className="text-[11px] font-semibold px-2.5 py-1 rounded-[7px] border border-dim-200 text-dim-600 hover:border-brand-400 hover:text-brand-700 hover:bg-brand-50 transition-colors"
+                              >
+                                {patient.healthPlanId ? "Gerir Plano" : "Adicionar Plano"}
+                              </button>
+                              <Link
+                                href={`/patients/${patient.id}`}
+                                className="text-[11px] font-semibold text-brand-600 hover:text-brand-700 transition-colors"
+                              >
+                                Ver perfil →
+                              </Link>
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -367,6 +601,7 @@ export default function PatientsPage() {
       </div>
 
       <NewPatientModal open={newPatientOpen} onClose={() => setNewPatientOpen(false)} />
+      {planPatient && <PlanModal patient={planPatient} onClose={() => setPlanPatient(null)} />}
     </>
   );
 }
