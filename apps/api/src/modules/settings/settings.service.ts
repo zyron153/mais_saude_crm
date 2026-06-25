@@ -1,9 +1,13 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
+import { NotificationsService } from "../notifications/notifications.service";
 
 @Injectable()
 export class SettingsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   async getAll(): Promise<Record<string, unknown>> {
     const rows = await this.prisma.setting.findMany();
@@ -17,6 +21,9 @@ export class SettingsService {
       update: { value: value as any },
       create: { key, value: value as any },
     });
+    if (key === "notifications") {
+      await this.notifications.syncScheduledJobs(value as Record<string, boolean>);
+    }
     return { ok: true };
   }
 }

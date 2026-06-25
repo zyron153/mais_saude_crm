@@ -12,6 +12,7 @@ import { REDIS_CLIENT } from "../../common/redis/redis.module";
 import { AppointmentsRepository } from "./appointments.repository";
 import { AppointmentsGateway } from "./appointments.gateway";
 import { BillingService } from "../billing/billing.service";
+import { NotificationsService } from "../notifications/notifications.service";
 import {
   CreateAppointmentDto,
   UpdateAppointmentStatusDto,
@@ -31,6 +32,7 @@ export class AppointmentsService {
     private readonly repo: AppointmentsRepository,
     private readonly gateway: AppointmentsGateway,
     private readonly billingService: BillingService,
+    private readonly notifService: NotificationsService,
     @InjectQueue("reminders") private readonly remindersQueue: Queue,
     @Inject(REDIS_CLIENT) private readonly redis: Redis
   ) {}
@@ -118,6 +120,7 @@ export class AppointmentsService {
       });
 
       await this.enqueueReminders(appointment.id, scheduledAt);
+      await this.notifService.notifyConfirm(appointment.id);
       this.gateway.emitAppointmentCreated(appointment);
 
       return appointment;
@@ -164,6 +167,10 @@ export class AppointmentsService {
 
     const updated = await this.repo.update(id, data);
     this.gateway.emitAppointmentUpdated(updated);
+
+    if (dto.status === "cancelled") {
+      await this.notifService.notifyCancel(id);
+    }
 
     if (dto.status === "completed" && appointment.service) {
       const unitPrice = Number(appointment.service.price);
@@ -232,6 +239,7 @@ export class AppointmentsService {
   }
 
   private async enqueueReminders(appointmentId: string, scheduledAt: Date) {
+    if (!(await this.notifService.isReminderEnabled())) return;
     const offsets = [48 * 60, 24 * 60, 2 * 60];
 
     for (const offsetMin of offsets) {
