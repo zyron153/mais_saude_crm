@@ -8,6 +8,7 @@ import { pt } from "date-fns/locale";
 import { Plus, Receipt, ChevronLeft, ChevronRight, TrendingUp, AlertCircle, Clock } from "lucide-react";
 import type { Invoice, PaginatedResponse } from "@cms/types";
 import { Modal } from "../../../components/ui/modal";
+import { useMessage } from "../../../components/ui/message-handler";
 
 async function fetchInvoices(page: number, status?: string) {
   const params = new URLSearchParams({ page: String(page), limit: "20" });
@@ -67,6 +68,7 @@ function SkeletonRow() {
 type LocalInvoice = { id: string; invoiceNumber: string; patient: { fullName: string }; total: number; amountPaid: number; status: "draft"; issuedAt: string | null };
 
 export default function BillingPage() {
+  const { addMessage } = useMessage();
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState("");
   const [newOpen, setNewOpen] = useState(false);
@@ -89,6 +91,7 @@ export default function BillingPage() {
     }, ...prev]);
     setForm(BLANK_FORM);
     setNewOpen(false);
+    addMessage("Success", "Fatura criada em rascunho!");
   }
 
   const { data, isLoading, error } = useQuery({

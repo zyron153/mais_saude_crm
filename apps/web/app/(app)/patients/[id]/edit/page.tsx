@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import type { Patient } from "@cms/types";
+import { useMessage } from "../../../../../components/ui/message-handler";
 
 type FormState = {
   fullName: string;
@@ -31,6 +32,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 export default function PatientEditPage({ params }: { params: { id: string } }) {
   const router = useRouter();
+  const { addMessage } = useMessage();
   const [form, setForm] = useState<FormState>({
     fullName: "", dateOfBirth: "", gender: "female", phone: "", nif: "", email: "", address: "",
   });
@@ -83,9 +85,12 @@ export default function PatientEditPage({ params }: { params: { id: string } }) 
         const err = await res.json().catch(() => ({}));
         throw new Error(err.message ?? "Erro ao guardar");
       }
+      addMessage("Success", "Dados guardados com sucesso!");
       router.push(`/patients/${params.id}`);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Erro desconhecido");
+      const msg = e instanceof Error ? e.message : "Erro desconhecido";
+      setError(msg);
+      addMessage("Error", msg);
     } finally {
       setSaving(false);
     }

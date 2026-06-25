@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { Search, Plus, User, ChevronLeft, ChevronRight, AlertCircle } from "lucide-react";
 import { Modal } from "../../../components/ui/modal";
+import { useMessage } from "../../../components/ui/message-handler";
 import { CreatePatientSchema, type CreatePatientDto } from "@cms/types";
 import type { Patient, PaginatedResponse } from "@cms/types";
 
@@ -57,6 +58,7 @@ function Field({ label, required, error, children }: {
 
 function NewPatientModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const queryClient = useQueryClient();
+  const { addMessage } = useMessage();
   const { register, handleSubmit, reset, formState: { errors } } = useForm<CreatePatientDto>({
     resolver: zodResolver(CreatePatientSchema),
     defaultValues: { consentGiven: false, gender: "other" },
@@ -66,9 +68,11 @@ function NewPatientModal({ open, onClose }: { open: boolean; onClose: () => void
     mutationFn: createPatient,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["patients"] });
+      addMessage("Success", "Paciente criado com sucesso!");
       reset();
       onClose();
     },
+    onError: (e: Error) => addMessage("Error", e.message),
   });
 
   // Reset form when modal closes
@@ -170,6 +174,7 @@ type HealthPlan  = { id: string; planNumber: string; startDate: string; endDate?
 
 function PlanModal({ patient, onClose }: { patient: Patient; onClose: () => void }) {
   const queryClient = useQueryClient();
+  const { addMessage } = useMessage();
   const hasplan = !!patient.healthPlanId;
   const [mode, setMode] = useState<"view" | "edit">(hasplan ? "view" : "edit");
   const TODAY = new Date().toISOString().split("T")[0];
@@ -233,8 +238,12 @@ function PlanModal({ patient, onClose }: { patient: Patient; onClose: () => void
         body: JSON.stringify({ healthPlanId: plan.id }),
       }).then(async r => { if (!r.ok) { const e = await r.json(); throw new Error(e.message ?? "Erro ao associar plano"); } });
     },
-    onSuccess: () => { invalidate(); onClose(); },
-    onError: (e: Error) => setErr(e.message),
+    onSuccess: () => {
+      invalidate();
+      addMessage("Success", hasplan ? "Plano atualizado com sucesso!" : "Plano adicionado com sucesso!");
+      onClose();
+    },
+    onError: (e: Error) => { setErr(e.message); addMessage("Error", e.message); },
   });
 
   const removeMutation = useMutation({
@@ -243,8 +252,12 @@ function PlanModal({ patient, onClose }: { patient: Patient; onClose: () => void
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ healthPlanId: null }),
     }).then(async r => { if (!r.ok) { const e = await r.json(); throw new Error(e.message ?? "Erro ao remover plano"); } }),
-    onSuccess: () => { invalidate(); onClose(); },
-    onError: (e: Error) => setErr(e.message),
+    onSuccess: () => {
+      invalidate();
+      addMessage("Success", "Plano removido com sucesso.");
+      onClose();
+    },
+    onError: (e: Error) => { setErr(e.message); addMessage("Error", e.message); },
   });
 
   const inputCls = "w-full border border-dim-200 rounded-[10px] px-3.5 py-2.5 text-[13px] text-dim-900 placeholder:text-dim-400 bg-white focus:outline-none focus:border-brand-500 focus:shadow-[0_0_0_3px_rgba(19,163,163,.12)] transition-all shadow-[0_1px_2px_rgba(0,0,0,.05)]";

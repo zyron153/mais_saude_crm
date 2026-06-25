@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, UserPlus } from "lucide-react";
 import { CreatePatientSchema, type CreatePatientDto } from "@cms/types";
+import { useMessage } from "../../../../components/ui/message-handler";
 
 async function createPatient(data: CreatePatientDto) {
   const res = await fetch("/api/patients", {
@@ -46,6 +47,7 @@ const CARD = "bg-white rounded-[16px] border border-dim-200 shadow-[0_1px_4px_rg
 
 export default function NewPatientPage() {
   const router = useRouter();
+  const { addMessage } = useMessage();
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<CreatePatientDto>({
     resolver: zodResolver(CreatePatientSchema),
@@ -54,7 +56,11 @@ export default function NewPatientPage() {
 
   const mutation = useMutation({
     mutationFn: createPatient,
-    onSuccess: (data) => router.push(`/patients/${data.id}`),
+    onSuccess: (data) => {
+      addMessage("Success", "Paciente criado com sucesso!");
+      router.push(`/patients/${data.id}`);
+    },
+    onError: (e: Error) => addMessage("Error", e.message),
   });
 
   return (

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Shield, Users, TrendingUp, AlertTriangle, Plus, ChevronRight } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
+import { useMessage } from "@/components/ui/message-handler";
 
 /* ─── Types ──────────────────────────────────────────────────── */
 
@@ -69,6 +70,7 @@ function Field({ label, required, hint, children }: { label: string; required?: 
 
 export default function HealthPlansPage() {
   const queryClient = useQueryClient();
+  const { addMessage } = useMessage();
   const [newOpen, setNewOpen]             = useState(false);
   const [managingProduct, setManagingProduct] = useState<PlanProduct | null>(null);
   const [deactivateConfirm, setDeactivateConfirm] = useState(false);
@@ -124,8 +126,9 @@ export default function HealthPlansPage() {
       setForm({ name: "", code: "", type: "familiar", coverage: "80", monthlyFee: "" });
       setFormErr("");
       setNewOpen(false);
+      addMessage("Success", "Produto de plano criado com sucesso!");
     },
-    onError: (e: Error) => setFormErr(e.message),
+    onError: (e: Error) => { setFormErr(e.message); addMessage("Error", e.message); },
   });
 
   const deactivateMutation = useMutation({
@@ -135,7 +138,9 @@ export default function HealthPlansPage() {
       queryClient.invalidateQueries({ queryKey: ["health-plan-products"] });
       setManagingProduct(null);
       setDeactivateConfirm(false);
+      addMessage("Success", "Produto desativado com sucesso.");
     },
+    onError: (e: Error) => addMessage("Error", e.message),
   });
 
   /* ── Derived ── */

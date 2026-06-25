@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Users2, Stethoscope, UserCheck, Clock, Phone, Mail, ChevronRight, Plus, X } from "lucide-react";
 import { Modal } from "../../../components/ui/modal";
+import { useMessage } from "../../../components/ui/message-handler";
 
 type StaffMember = {
   id: string;
@@ -182,6 +183,7 @@ function StaffForm({ initialValues, onSave, onCancel, submitLabel }: {
 const CARD = "bg-white rounded-[16px] border border-dim-200 shadow-[0_1px_4px_rgba(0,0,0,.08),0_0_0_1px_rgba(0,0,0,.03)] overflow-hidden";
 
 export default function StaffPage() {
+  const { addMessage } = useMessage();
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [newOpen, setNewOpen] = useState(false);
 
@@ -217,6 +219,7 @@ export default function StaffPage() {
     };
     setStaff((prev) => [...prev, newMember]);
     setNewOpen(false);
+    addMessage("Success", "Colaborador adicionado com sucesso!");
   }
 
   function saveEdit(form: typeof BLANK_FORM) {
@@ -227,6 +230,7 @@ export default function StaffPage() {
         : s
     ));
     setEditingStaff(null);
+    addMessage("Success", "Alterações guardadas com sucesso!");
   }
 
   function toFormValues(m: StaffMember): typeof BLANK_FORM {
