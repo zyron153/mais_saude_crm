@@ -114,6 +114,12 @@ export default function BillingPage() {
   });
   const patientsList = patientsData?.data ?? [];
 
+  const { data: servicesList = [] } = useQuery<{ id: number; valor: string; codigo: string | null }[]>({
+    queryKey: ["parametrizacao", "TIPO_SERVICO"],
+    queryFn: () => fetch("/api/parametrizacao/TIPO_SERVICO").then(r => r.json()),
+    staleTime: 120_000,
+  });
+
   return (
     <>
     <div className="flex flex-col gap-5">
@@ -323,7 +329,12 @@ export default function BillingPage() {
         </div>
         <div>
           <label className="block text-[12px] font-semibold text-dim-700 mb-1.5">Serviço / Descrição</label>
-          <input value={form.service} onChange={(e) => set("service", e.target.value)} placeholder="Ex: Consulta Geral" className={inputCls} />
+          <select value={form.service} onChange={(e) => set("service", e.target.value)} className={inputCls}>
+            <option value="">Selecionar serviço…</option>
+            {servicesList.map((s) => (
+              <option key={s.id} value={s.valor}>{s.valor}</option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="block text-[12px] font-semibold text-dim-700 mb-1.5">Valor Total (CVE)</label>

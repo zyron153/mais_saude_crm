@@ -16,7 +16,7 @@ type Group = { nome: string; count: number };
 /* ── Sidebar sections ────────────────────────────────────── */
 
 const SECTIONS: { label: string; nomes: string[] }[] = [
-  { label: "Colaboradores", nomes: ["FUNCAO", "ESPECIALIDADE"] },
+  { label: "Colaboradores", nomes: ["PROFILE_SETTINGS", "FUNCAO", "ESPECIALIDADE"] },
   { label: "Clínica",       nomes: ["TIPO_SERVICO", "TIPO_EXAME", "TIPO_CONSULTA"] },
   { label: "Planos",        nomes: ["TIPO_PLANO_SAUDE"] },
 ];
@@ -148,7 +148,7 @@ function ValuesPanel({ nome }: { nome: string }) {
   const queryClient = useQueryClient();
 
   const { data: entries = [], isLoading, isError } = useQuery<Entry[]>({
-    queryKey: ["parametrizacao", nome],
+    queryKey: ["parametrizacao-admin", nome],
     queryFn: () =>
       fetch(`/api/parametrizacao/${nome}?includeInactive=true`).then(r => {
         if (!r.ok) throw new Error(`API ${r.status}`);
@@ -169,6 +169,7 @@ function ValuesPanel({ nome }: { nome: string }) {
 
   /* ── Mutations ── */
   function invalidate() {
+    queryClient.invalidateQueries({ queryKey: ["parametrizacao-admin", nome] });
     queryClient.invalidateQueries({ queryKey: ["parametrizacao", nome] });
     queryClient.invalidateQueries({ queryKey: ["parametrizacao-groups"] });
   }

@@ -3,9 +3,12 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  Building2, Bell, Users, Plug, Shield,
+  Building2, Bell, Users, Plug, Shield, ShieldCheck,
   AlertCircle, Clock, Phone, Mail, Globe,
-  Key, Lock, Eye, EyeOff, Check, Plus,
+  Key, Lock, Eye, EyeOff, Check, Plus, X, ExternalLink,
+  LayoutDashboard, CalendarDays, UserRound, HeartPulse,
+  FlaskConical, Receipt, ClipboardList, UserCog,
+  Home, BarChart2, Settings2, SlidersHorizontal,
 } from "lucide-react";
 import { useMessage } from "../../../components/ui/message-handler";
 import { Modal } from "../../../components/ui/modal";
@@ -294,6 +297,11 @@ function AddUserModal({ open, onClose }: { open: boolean; onClose: () => void })
   const { addMessage } = useMessage();
   const queryClient = useQueryClient();
   const [form, setForm] = useState<NewUserForm>(BLANK_USER);
+  const { data: profileOptions = [] } = useQuery<{ id: number; valor: string; codigo: string | null }[]>({
+    queryKey: ["parametrizacao", "PROFILE_SETTINGS"],
+    queryFn: () => fetch("/api/parametrizacao/PROFILE_SETTINGS").then(r => r.json()),
+    staleTime: 120_000,
+  });
   const [errs, setErrs] = useState<Record<string, string>>({});
 
   function set<K extends keyof NewUserForm>(k: K, v: NewUserForm[K]) {
@@ -362,9 +370,11 @@ function AddUserModal({ open, onClose }: { open: boolean; onClose: () => void })
             <input type="email" className={inputCls} value={form.email} onChange={e => set("email", e.target.value)} placeholder="nome@maissaude.cv" />
             {errs.email && <p className="text-[11px] text-red-600 mt-1">{errs.email}</p>}
           </Field>
-          <Field label="Função">
+          <Field label="Perfil">
             <select className={inputCls} value={form.role} onChange={e => set("role", e.target.value)}>
-              {ROLE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              {(profileOptions.length > 0 ? profileOptions : ROLE_OPTIONS.map(o => ({ id: o.value, valor: o.label, codigo: o.value }))).map(o => (
+                <option key={o.id} value={o.codigo ?? ""}>{o.valor}</option>
+              ))}
             </select>
           </Field>
           <Field label="Telefone">
@@ -445,7 +455,7 @@ function UsersTab() {
         <table className="w-full border-collapse">
           <thead>
             <tr>
-              {["Colaborador", "Função", "Email", "Telefone", "Estado"].map(h => (
+              {["Colaborador", "Perfil", "Email", "Telefone", "Estado"].map(h => (
                 <th key={h} className="text-left text-[10px] font-bold uppercase tracking-[0.07em] text-dim-400 px-5 py-2.5 border-b border-dim-100 bg-dim-50">{h}</th>
               ))}
             </tr>
@@ -497,56 +507,312 @@ function UsersTab() {
   );
 }
 
-/* ── Integrations Tab (static — no backend integration APIs) */
+/* ── Integrations Tab ────────────────────────────────────── */
 
-const INTEGRATIONS = [
-  { name: "Keycloak SSO",       desc: "Autenticação e gestão de identidades",  status: "connected",    icon: Shield, color: "text-brand-600",   bg: "bg-brand-50"   },
-  { name: "WhatsApp Business",  desc: "Mensagens automáticas aos pacientes",   status: "connected",    icon: Phone,  color: "text-emerald-600", bg: "bg-emerald-50" },
-  { name: "Cloudflare R2",      desc: "Armazenamento de exames e documentos",  status: "connected",    icon: Globe,  color: "text-amber-600",   bg: "bg-amber-50"   },
-  { name: "Email (SMTP)",       desc: "Notificações por email",                status: "connected",    icon: Mail,   color: "text-violet-600",  bg: "bg-violet-50"  },
-  { name: "Laboratório CVLab",  desc: "Integração de resultados de exames",    status: "disconnected", icon: Plug,   color: "text-dim-400",     bg: "bg-dim-100"    },
-  { name: "Portal de Saúde CV", desc: "Comunicação com o SNS nacional",        status: "pending",      icon: Globe,  color: "text-amber-600",   bg: "bg-amber-50"   },
-];
+type IntgStatus = "connected" | "pending" | "disconnected";
+type FieldDef = { key: string; label: string; placeholder: string; type?: string; hint?: string };
+
+const INTEGRATIONS_DEF = [
+  {
+    key: "keycloak",
+    name: "Keycloak SSO",
+    desc: "Autenticação e gestão de identidades",
+    icon: Shield, color: "text-brand-600", bg: "bg-brand-50",
+    defaultStatus: "connected" as IntgStatus,
+    fields: [
+      { key: "serverUrl",     label: "Server URL",     placeholder: "https://auth.maissaude.cv",  type: "url"      },
+      { key: "realm",         label: "Realm",          placeholder: "maissaude"                                    },
+      { key: "clientId",      label: "Client ID",      placeholder: "cms-api"                                      },
+      { key: "clientSecret",  label: "Client Secret",  placeholder: "••••••••",                   type: "password" },
+    ] as FieldDef[],
+  },
+  {
+    key: "whatsapp",
+    name: "WhatsApp Business",
+    desc: "Mensagens automáticas aos pacientes",
+    icon: Phone, color: "text-emerald-600", bg: "bg-emerald-50",
+    defaultStatus: "connected" as IntgStatus,
+    fields: [
+      { key: "phoneNumberId", label: "Phone Number ID",       placeholder: "123456789012345"                                      },
+      { key: "accessToken",   label: "Access Token",          placeholder: "EAAxxxxx…",             type: "password"               },
+      { key: "webhookToken",  label: "Webhook Verify Token",  placeholder: "token_secreto",         type: "password"               },
+      { key: "webhookUrl",    label: "Webhook URL (receber)", placeholder: "https://api.maissaude.cv/v1/whatsapp/webhook", hint: "Configure este URL no Meta Business Manager" },
+    ] as FieldDef[],
+  },
+  {
+    key: "cloudflare_r2",
+    name: "Cloudflare R2",
+    desc: "Armazenamento de exames e documentos",
+    icon: Globe, color: "text-amber-600", bg: "bg-amber-50",
+    defaultStatus: "connected" as IntgStatus,
+    fields: [
+      { key: "accountId",    label: "Account ID",       placeholder: "abc123def456"              },
+      { key: "accessKeyId",  label: "Access Key ID",    placeholder: "R2_ACCESS_KEY"             },
+      { key: "secretKey",    label: "Secret Access Key",placeholder: "••••••••", type: "password" },
+      { key: "bucketName",   label: "Bucket",           placeholder: "cms-exames"                },
+      { key: "publicUrl",    label: "URL Pública",      placeholder: "https://r2.maissaude.cv"   },
+    ] as FieldDef[],
+  },
+  {
+    key: "email_smtp",
+    name: "Email (SMTP)",
+    desc: "Notificações por email",
+    icon: Mail, color: "text-violet-600", bg: "bg-violet-50",
+    defaultStatus: "connected" as IntgStatus,
+    fields: [
+      { key: "host",     label: "Host SMTP",      placeholder: "smtp.mailgun.org"          },
+      { key: "port",     label: "Porta",          placeholder: "587"                        },
+      { key: "username", label: "Utilizador",     placeholder: "noreply@maissaude.cv"      },
+      { key: "password", label: "Palavra-passe",  placeholder: "••••••••", type: "password" },
+      { key: "fromName", label: "Nome do remetente", placeholder: "Clínica Mais Saúde"     },
+    ] as FieldDef[],
+  },
+  {
+    key: "cvlab",
+    name: "Laboratório CVLab",
+    desc: "Integração de resultados de exames",
+    icon: Plug, color: "text-dim-400", bg: "bg-dim-100",
+    defaultStatus: "disconnected" as IntgStatus,
+    fields: [
+      { key: "apiUrl", label: "API URL",  placeholder: "https://api.cvlab.cv/v1"        },
+      { key: "apiKey", label: "API Key",  placeholder: "cvlab_••••••••", type: "password" },
+    ] as FieldDef[],
+  },
+  {
+    key: "portal_saude",
+    name: "Portal de Saúde CV",
+    desc: "Comunicação com o SNS nacional",
+    icon: Globe, color: "text-amber-600", bg: "bg-amber-50",
+    defaultStatus: "pending" as IntgStatus,
+    fields: [
+      { key: "apiUrl",      label: "API URL",     placeholder: "https://portal.saude.gov.cv/api" },
+      { key: "apiKey",      label: "API Key",     placeholder: "••••••••", type: "password"       },
+      { key: "entityCode",  label: "Código Entidade", placeholder: "CV-CLINIC-0001"              },
+    ] as FieldDef[],
+  },
+] as const;
+
+type IntgKey = typeof INTEGRATIONS_DEF[number]["key"];
+
+const LS_INTG_STATUS = "cms:intg-status";
+const LS_INTG_CONFIG = "cms:intg-config";
+
+function loadIntgStatus(): Record<IntgKey, IntgStatus> {
+  try { const r = localStorage.getItem(LS_INTG_STATUS); if (r) return JSON.parse(r); } catch {}
+  return Object.fromEntries(INTEGRATIONS_DEF.map(i => [i.key, i.defaultStatus])) as Record<IntgKey, IntgStatus>;
+}
+function loadIntgConfig(): Record<string, Record<string, string>> {
+  try { const r = localStorage.getItem(LS_INTG_CONFIG); if (r) return JSON.parse(r); } catch {}
+  return {};
+}
 
 function IntegrationsTab() {
+  const { addMessage } = useMessage();
+  const [statuses, setStatuses] = useState<Record<IntgKey, IntgStatus>>(loadIntgStatus);
+  const [config, setConfig] = useState<Record<string, Record<string, string>>>(loadIntgConfig);
+  const [configuring, setConfiguring] = useState<IntgKey | null>(null);
+  const [confirmDisconnect, setConfirmDisconnect] = useState<IntgKey | null>(null);
+
+  const activeIntg = INTEGRATIONS_DEF.find(i => i.key === configuring);
+
+  // hydrate from backend on mount
+  const { data: allSettings } = useQuery<Record<string, Record<string, string>>>({
+    queryKey: ["settings-all"],
+    queryFn: () => fetch("/api/settings").then(r => r.json()),
+    staleTime: 60_000,
+  });
+  useEffect(() => {
+    if (!allSettings) return;
+    const backendConfig: Record<string, Record<string, string>> = {};
+    const backendStatuses: Record<string, IntgStatus> = { ...loadIntgStatus() };
+    for (const intg of INTEGRATIONS_DEF) {
+      const saved = allSettings[`integration_${intg.key}`] as Record<string, string> | undefined;
+      if (saved && Object.keys(saved).length > 0) {
+        backendConfig[intg.key] = saved;
+        backendStatuses[intg.key] = "connected";
+      }
+    }
+    if (Object.keys(backendConfig).length > 0) {
+      setConfig(prev => ({ ...prev, ...backendConfig }));
+      setStatuses(prev => ({ ...prev, ...(backendStatuses as Record<IntgKey, IntgStatus>) }));
+    }
+  }, [allSettings]);
+
+  function saveStatuses(next: Record<IntgKey, IntgStatus>) {
+    setStatuses(next);
+    localStorage.setItem(LS_INTG_STATUS, JSON.stringify(next));
+  }
+
+  async function handleSaveConfig(key: IntgKey, values: Record<string, string>) {
+    try {
+      const res = await fetch(`/api/settings/integration/${key}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      addMessage("Error", "Erro ao guardar configuração no servidor.");
+      return;
+    }
+    const nextConfig = { ...config, [key]: values };
+    setConfig(nextConfig);
+    localStorage.setItem(LS_INTG_CONFIG, JSON.stringify(nextConfig));
+    const next = { ...statuses, [key]: "connected" as IntgStatus };
+    saveStatuses(next);
+    setConfiguring(null);
+    addMessage("Success", "Integração configurada e ligada com sucesso!");
+  }
+
+  function handleDisconnect(key: IntgKey) {
+    saveStatuses({ ...statuses, [key]: "disconnected" });
+    setConfirmDisconnect(null);
+    addMessage("Info", "Integração desligada.");
+  }
+
   return (
-    <div className="grid grid-cols-2 gap-4">
-      {INTEGRATIONS.map(intg => {
-        const Icon = intg.icon;
-        const isConnected = intg.status === "connected";
-        const isPending   = intg.status === "pending";
-        return (
-          <div key={intg.name} className={CARD}>
-            <div className="px-5 py-5">
-              <div className="flex items-start justify-between mb-3">
-                <div className={`w-9 h-9 ${intg.bg} rounded-[10px] flex items-center justify-center`}>
-                  <Icon className={intg.color} style={{ width: 18, height: 18 }} />
+    <>
+      <div className="grid grid-cols-2 gap-4">
+        {INTEGRATIONS_DEF.map(intg => {
+          const Icon = intg.icon;
+          const status = statuses[intg.key];
+          const isConnected = status === "connected";
+          const isPending   = status === "pending";
+          const isConfirming = confirmDisconnect === intg.key;
+
+          return (
+            <div key={intg.key} className={CARD}>
+              <div className="px-5 py-5">
+                <div className="flex items-start justify-between mb-3">
+                  <div className={`w-9 h-9 ${isConnected ? intg.bg : "bg-dim-100"} rounded-[10px] flex items-center justify-center transition-colors`}>
+                    <Icon className={isConnected ? intg.color : "text-dim-400"} style={{ width: 18, height: 18 }} />
+                  </div>
+                  <div className={`inline-flex items-center gap-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                    isConnected ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/80" :
+                    isPending   ? "bg-amber-50 text-amber-700 ring-1 ring-amber-200/80"       :
+                                  "bg-dim-100 text-dim-400"
+                  }`}>
+                    <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? "bg-emerald-500" : isPending ? "bg-amber-400 animate-pulse" : "bg-dim-300"}`} />
+                    {isConnected ? "Ligado" : isPending ? "Pendente" : "Desligado"}
+                  </div>
                 </div>
-                <div className={`inline-flex items-center gap-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                  isConnected ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/80" :
-                  isPending   ? "bg-amber-50 text-amber-700 ring-1 ring-amber-200/80"       :
-                                "bg-dim-100 text-dim-400"
-                }`}>
-                  <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? "bg-emerald-500" : isPending ? "bg-amber-400 animate-pulse" : "bg-dim-300"}`} />
-                  {isConnected ? "Ligado" : isPending ? "Pendente" : "Desligado"}
-                </div>
-              </div>
-              <p className="text-[14px] font-semibold text-dim-900">{intg.name}</p>
-              <p className="text-[11px] text-dim-400 mt-0.5">{intg.desc}</p>
-              <div className="mt-4 flex items-center gap-2">
-                <button className={`text-[11px] font-semibold px-3 py-1.5 rounded-[8px] border transition-colors ${
-                  isConnected ? "border-dim-200 text-dim-500 hover:border-dim-300 hover:text-dim-700"
-                              : "border-brand-400 text-brand-700 hover:bg-brand-50"
-                }`}>
-                  {isConnected ? "Configurar" : "Ligar"}
-                </button>
-                {isConnected && <button className="text-[11px] font-semibold text-dim-400 hover:text-red-500 transition-colors">Desligar</button>}
+
+                <p className="text-[14px] font-semibold text-dim-900">{intg.name}</p>
+                <p className="text-[11px] text-dim-400 mt-0.5">{intg.desc}</p>
+
+                {isConfirming ? (
+                  <div className="mt-4 flex items-center gap-2 p-2.5 bg-red-50 rounded-[8px] border border-red-100">
+                    <p className="text-[11px] text-red-700 flex-1 font-medium">Confirmar desligamento?</p>
+                    <button onClick={() => handleDisconnect(intg.key)} className="text-[11px] font-bold text-red-600 hover:text-red-800 transition-colors">Sim</button>
+                    <button onClick={() => setConfirmDisconnect(null)} className="text-[11px] text-dim-500 hover:text-dim-700 transition-colors ml-1">Não</button>
+                  </div>
+                ) : (
+                  <div className="mt-4 flex items-center gap-2">
+                    <button
+                      onClick={() => setConfiguring(intg.key)}
+                      className={`text-[11px] font-semibold px-3 py-1.5 rounded-[8px] border transition-colors ${
+                        isConnected
+                          ? "border-dim-200 text-dim-600 hover:border-brand-400 hover:text-brand-700"
+                          : "border-brand-500 text-brand-700 bg-brand-50 hover:bg-brand-100"
+                      }`}
+                    >
+                      {isConnected ? "Configurar" : "Ligar"}
+                    </button>
+                    {isConnected && (
+                      <button
+                        onClick={() => setConfirmDisconnect(intg.key)}
+                        className="text-[11px] font-semibold text-dim-400 hover:text-red-500 transition-colors"
+                      >
+                        Desligar
+                      </button>
+                    )}
+                    {isPending && (
+                      <button
+                        onClick={() => setConfiguring(intg.key)}
+                        className="text-[11px] font-semibold text-amber-600 hover:text-amber-800 transition-colors"
+                      >
+                        Completar configuração
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
-          </div>
-        );
-      })}
-    </div>
+          );
+        })}
+      </div>
+
+      {activeIntg && (
+        <IntegrationConfigModal
+          intg={activeIntg}
+          initial={config[activeIntg.key] ?? {}}
+          onSave={(vals) => handleSaveConfig(activeIntg.key, vals)}
+          onClose={() => setConfiguring(null)}
+        />
+      )}
+    </>
+  );
+}
+
+function IntegrationConfigModal({
+  intg,
+  initial,
+  onSave,
+  onClose,
+}: {
+  intg: typeof INTEGRATIONS_DEF[number];
+  initial: Record<string, string>;
+  onSave: (vals: Record<string, string>) => void;
+  onClose: () => void;
+}) {
+  const Icon = intg.icon;
+  const [vals, setVals] = useState<Record<string, string>>(
+    () => Object.fromEntries(intg.fields.map(f => [f.key, initial[f.key] ?? ""]))
+  );
+  const [showPw, setShowPw] = useState<Record<string, boolean>>({});
+
+  return (
+    <Modal open onClose={onClose} title={`Configurar — ${intg.name}`} description="Preencha as credenciais de ligação" size="md">
+      <div className="px-6 py-5 flex flex-col gap-4">
+        {intg.fields.map(f => {
+          const isPassword = f.type === "password";
+          const revealed = showPw[f.key];
+          return (
+            <div key={f.key}>
+              <label className="block text-[12px] font-semibold text-dim-700 mb-1.5">{f.label}</label>
+              <div className="relative">
+                <input
+                  type={isPassword && !revealed ? "password" : f.type === "url" ? "url" : "text"}
+                  value={vals[f.key] ?? ""}
+                  onChange={e => setVals(v => ({ ...v, [f.key]: e.target.value }))}
+                  placeholder={f.placeholder}
+                  className={`${inputCls} ${isPassword ? "pr-9" : ""}`}
+                  autoComplete="off"
+                />
+                {isPassword && (
+                  <button type="button" onClick={() => setShowPw(s => ({ ...s, [f.key]: !s[f.key] }))}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-dim-400 hover:text-dim-700 transition-colors">
+                    {revealed ? <EyeOff style={{ width: 13, height: 13 }} /> : <Eye style={{ width: 13, height: 13 }} />}
+                  </button>
+                )}
+              </div>
+              {f.hint && <p className="text-[10px] text-dim-400 mt-1 flex items-center gap-1"><ExternalLink style={{ width: 9, height: 9 }} />{f.hint}</p>}
+            </div>
+          );
+        })}
+      </div>
+      <div className="px-6 py-4 border-t border-dim-100 flex items-center gap-3">
+        <button
+          onClick={() => onSave(vals)}
+          className="bg-brand-700 hover:bg-brand-800 text-white font-semibold px-5 py-2.5 rounded-[10px] text-[13px] transition-colors"
+        >
+          Guardar e Ligar
+        </button>
+        <button onClick={onClose} className="border border-dim-200 bg-white hover:bg-dim-50 text-dim-700 font-medium px-5 py-2.5 rounded-[10px] text-[13px] transition-colors">
+          Cancelar
+        </button>
+      </div>
+    </Modal>
   );
 }
 
@@ -647,14 +913,165 @@ function SecurityTab() {
   );
 }
 
+/* ── Access Control Tab ──────────────────────────────────── */
+
+const ROLES = [
+  { key: "admin",        label: "Administrador"  },
+  { key: "doctor",       label: "Médico/a"       },
+  { key: "nurse",        label: "Enfermeiro/a"   },
+  { key: "receptionist", label: "Recepcionista"  },
+  { key: "lab_tech",     label: "Técnico/a Lab." },
+] as const;
+
+type RoleKey = typeof ROLES[number]["key"];
+
+const ACCESS_PAGES = [
+  { key: "dashboard",    label: "Dashboard",            icon: LayoutDashboard  },
+  { key: "appointments", label: "Agendamentos",          icon: CalendarDays     },
+  { key: "patients",     label: "Pacientes CRM",         icon: UserRound        },
+  { key: "health_plans", label: "Planos de Saúde",       icon: HeartPulse       },
+  { key: "exams",        label: "Exames & Resultados",   icon: FlaskConical     },
+  { key: "billing",      label: "Faturação",             icon: Receipt          },
+  { key: "records",      label: "Registos Clínicos",     icon: ClipboardList    },
+  { key: "staff",        label: "Equipa & Turnos",       icon: UserCog          },
+  { key: "visits",       label: "Visitas Domiciliárias", icon: Home             },
+  { key: "analytics",    label: "Analytics",             icon: BarChart2        },
+  { key: "settings",     label: "Configurações",         icon: Settings2        },
+  { key: "params",       label: "Parametrizações",       icon: SlidersHorizontal },
+] as const;
+
+type PageKey = typeof ACCESS_PAGES[number]["key"];
+type AccessMatrix = Record<RoleKey, Record<PageKey, boolean>>;
+
+const DEFAULT_ACCESS: AccessMatrix = {
+  admin:        { dashboard: true,  appointments: true,  patients: true,  health_plans: true,  exams: true,  billing: true,  records: true,  staff: true,  visits: true,  analytics: true,  settings: true,  params: true  },
+  doctor:       { dashboard: true,  appointments: true,  patients: true,  health_plans: true,  exams: true,  billing: false, records: true,  staff: false, visits: true,  analytics: false, settings: false, params: false },
+  nurse:        { dashboard: true,  appointments: true,  patients: true,  health_plans: false, exams: true,  billing: false, records: true,  staff: false, visits: true,  analytics: false, settings: false, params: false },
+  receptionist: { dashboard: true,  appointments: true,  patients: true,  health_plans: true,  exams: false, billing: true,  records: false, staff: false, visits: false, analytics: false, settings: false, params: false },
+  lab_tech:     { dashboard: true,  appointments: false, patients: true,  health_plans: false, exams: true,  billing: false, records: false, staff: false, visits: false, analytics: false, settings: false, params: false },
+};
+
+const LS_KEY = "cms:access-control";
+
+function loadAccess(): AccessMatrix {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) return { ...DEFAULT_ACCESS, ...JSON.parse(raw) };
+  } catch { /* ignore */ }
+  return DEFAULT_ACCESS;
+}
+
+function AccessTab() {
+  const { addMessage } = useMessage();
+  const [matrix, setMatrix] = useState<AccessMatrix>(DEFAULT_ACCESS);
+
+  useEffect(() => { setMatrix(loadAccess()); }, []);
+
+  function toggle(role: RoleKey, page: PageKey) {
+    if (role === "admin") return; // admin always has full access
+    setMatrix(m => ({
+      ...m,
+      [role]: { ...m[role], [page]: !m[role][page] },
+    }));
+  }
+
+  function save() {
+    localStorage.setItem(LS_KEY, JSON.stringify(matrix));
+    addMessage("Success", "Permissões de acesso guardadas!");
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className={CARD}>
+        <div className="px-5 py-4 border-b border-dim-100">
+          <h3 className="font-display text-[14px] font-semibold text-dim-900">Matriz de Permissões por Perfil</h3>
+          <p className="text-[11px] text-dim-400 mt-0.5">Define quais páginas cada perfil de utilizador pode aceder</p>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-left">
+            <thead>
+              <tr className="bg-dim-50">
+                <th className="px-5 py-3 text-[10px] font-bold uppercase tracking-[0.07em] text-dim-400 border-b border-dim-100 w-52">
+                  Módulo / Página
+                </th>
+                {ROLES.map(r => (
+                  <th key={r.key} className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.07em] text-dim-400 border-b border-dim-100 text-center">
+                    {r.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {ACCESS_PAGES.map(page => {
+                const Icon = page.icon;
+                return (
+                  <tr key={page.key} className="hover:bg-dim-50/60 transition-colors group">
+                    <td className="px-5 py-3 border-b border-dim-100">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-6 h-6 bg-dim-100 rounded-[6px] flex items-center justify-center shrink-0 group-hover:bg-dim-200 transition-colors">
+                          <Icon className="text-dim-500" style={{ width: 12, height: 12 }} />
+                        </div>
+                        <span className="text-[13px] font-medium text-dim-800">{page.label}</span>
+                      </div>
+                    </td>
+                    {ROLES.map(role => {
+                      const granted = matrix[role.key][page.key];
+                      const isAdmin = role.key === "admin";
+                      return (
+                        <td key={role.key} className="px-4 py-3 border-b border-dim-100 text-center">
+                          <button
+                            type="button"
+                            disabled={isAdmin}
+                            onClick={() => toggle(role.key, page.key)}
+                            title={isAdmin ? "Administrador tem sempre acesso total" : granted ? "Remover acesso" : "Conceder acesso"}
+                            className={`inline-flex items-center justify-center w-6 h-6 rounded-full transition-all ${
+                              isAdmin
+                                ? "bg-brand-100 text-brand-700 cursor-default"
+                                : granted
+                                ? "bg-brand-700 text-white hover:bg-brand-800 cursor-pointer shadow-[0_1px_2px_rgba(0,0,0,.1)]"
+                                : "bg-dim-100 text-dim-300 hover:bg-dim-200 cursor-pointer"
+                            }`}
+                          >
+                            {granted ? <Check style={{ width: 10, height: 10 }} /> : <span className="text-[10px] font-bold">—</span>}
+                          </button>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="px-5 py-3 bg-dim-50/60 border-t border-dim-100 flex items-center gap-2">
+          <div className="w-6 h-6 bg-brand-100 rounded-full flex items-center justify-center shrink-0">
+            <Check style={{ width: 10, height: 10 }} className="text-brand-700" />
+          </div>
+          <span className="text-[11px] text-dim-500">Acesso concedido</span>
+          <div className="ml-4 w-6 h-6 bg-dim-100 rounded-full flex items-center justify-center shrink-0">
+            <span className="text-[10px] font-bold text-dim-300">—</span>
+          </div>
+          <span className="text-[11px] text-dim-500">Sem acesso</span>
+          <span className="text-[11px] text-dim-400 ml-4">· O perfil Administrador tem sempre acesso total</span>
+        </div>
+      </div>
+
+      <SaveButton saving={false} onClick={save} />
+    </div>
+  );
+}
+
 /* ── Main page ───────────────────────────────────────────── */
 
 const TABS = [
-  { key: "clinic",        label: "Clínica",       icon: Building2 },
-  { key: "notifs",        label: "Notificações",   icon: Bell      },
-  { key: "users",         label: "Utilizadores",   icon: Users     },
-  { key: "integrations",  label: "Integrações",    icon: Plug      },
-  { key: "security",      label: "Segurança",      icon: Shield    },
+  { key: "clinic",        label: "Clínica",         icon: Building2  },
+  { key: "notifs",        label: "Notificações",     icon: Bell       },
+  { key: "users",         label: "Utilizadores",     icon: Users      },
+  { key: "integrations",  label: "Integrações",      icon: Plug       },
+  { key: "access",        label: "Gestão de Acesso", icon: ShieldCheck },
+  { key: "security",      label: "Segurança",        icon: Shield     },
 ] as const;
 
 type TabKey = typeof TABS[number]["key"];
@@ -710,11 +1127,12 @@ export default function SettingsPage() {
             </div>
           ) : (
             <>
-              {activeTab === "clinic"       && <ClinicTab initial={clinic} />}
-              {activeTab === "notifs"       && <NotificationsTab initial={notifs} />}
-              {activeTab === "users"        && <UsersTab />}
-              {activeTab === "integrations" && <IntegrationsTab />}
-              {activeTab === "security"     && <SecurityTab />}
+              {activeTab === "clinic"        && <ClinicTab initial={clinic} />}
+              {activeTab === "notifs"        && <NotificationsTab initial={notifs} />}
+              {activeTab === "users"         && <UsersTab />}
+              {activeTab === "integrations"  && <IntegrationsTab />}
+              {activeTab === "access"        && <AccessTab />}
+              {activeTab === "security"      && <SecurityTab />}
             </>
           )}
         </div>

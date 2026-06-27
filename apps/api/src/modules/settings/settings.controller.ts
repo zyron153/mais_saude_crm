@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch } from "@nestjs/common";
+import { Body, Controller, Get, Param, Patch } from "@nestjs/common";
 import { Roles } from "../../common/decorators/roles.decorator";
 import { SettingsService } from "./settings.service";
 
@@ -22,5 +22,14 @@ export class SettingsController {
   @Roles("admin", "receptionist")
   updateNotifications(@Body() body: Record<string, unknown>) {
     return this.service.upsert("notifications", body);
+  }
+
+  @Patch("integration/:key")
+  @Roles("admin")
+  updateIntegration(
+    @Param("key") key: string,
+    @Body() body: Record<string, unknown>,
+  ) {
+    return this.service.upsert(`integration_${key}`, body);
   }
 }

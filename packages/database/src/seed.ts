@@ -471,6 +471,13 @@ async function main() {
       { valor: "Corporativo", codigo: "corp"       },
       { valor: "Particular",  codigo: "particular" },
     ]),
+    seedGroup("PROFILE_SETTINGS", [
+      { valor: "Administrador/a", codigo: "admin"        },
+      { valor: "Médico/a",        codigo: "doctor"       },
+      { valor: "Enfermeiro/a",    codigo: "nurse"        },
+      { valor: "Recepcionista",   codigo: "receptionist" },
+      { valor: "Técnico/a Lab.",  codigo: "lab_tech"     },
+    ]),
     // codigo = service UUID so the appointment form's serviceId maps directly
     seedGroup("TIPO_SERVICO", [
       { valor: "Consulta Geral",          codigo: services.find(s => s.code === "CONS-GERAL")?.id   },
