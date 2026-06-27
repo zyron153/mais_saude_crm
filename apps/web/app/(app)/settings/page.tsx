@@ -293,15 +293,90 @@ const BLANK_USER: NewUserForm = {
   days: [1, 2, 3, 4, 5], shiftStart: "08:00", shiftEnd: "17:00",
 };
 
-function AddUserModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { addMessage } = useMessage();
-  const queryClient = useQueryClient();
-  const [form, setForm] = useState<NewUserForm>(BLANK_USER);
-  const { data: profileOptions = [] } = useQuery<{ id: number; valor: string; codigo: string | null }[]>({
+function useProfileOptions() {
+  return useQuery<{ id: number; valor: string; codigo: string | null }[]>({
     queryKey: ["parametrizacao", "PROFILE_SETTINGS"],
     queryFn: () => fetch("/api/parametrizacao/PROFILE_SETTINGS").then(r => r.json()),
     staleTime: 120_000,
   });
+}
+
+function UserFormFields({
+  form, errs, profileOptions,
+  set, toggleDay,
+}: {
+  form: NewUserForm;
+  errs: Record<string, string>;
+  profileOptions: { id: number | string; valor: string; codigo: string | null }[];
+  set: <K extends keyof NewUserForm>(k: K, v: NewUserForm[K]) => void;
+  toggleDay: (dow: number) => void;
+}) {
+  const needsSpecialty = form.role === "doctor" || form.role === "nurse";
+  const opts = profileOptions.length > 0
+    ? profileOptions
+    : ROLE_OPTIONS.map(o => ({ id: o.value, valor: o.label, codigo: o.value }));
+
+  return (
+    <div className="px-6 py-5 grid grid-cols-2 gap-4">
+      <div className="col-span-2">
+        <Field label="Nome Completo *">
+          <input className={inputCls} value={form.fullName} onChange={e => set("fullName", e.target.value)} placeholder="Ex: Dra. Ana Silva" />
+          {errs.fullName && <p className="text-[11px] text-red-600 mt-1">{errs.fullName}</p>}
+        </Field>
+      </div>
+      <Field label="Email *">
+        <input type="email" className={inputCls} value={form.email} onChange={e => set("email", e.target.value)} placeholder="nome@maissaude.cv" />
+        {errs.email && <p className="text-[11px] text-red-600 mt-1">{errs.email}</p>}
+      </Field>
+      <Field label="Perfil">
+        <select className={inputCls} value={form.role} onChange={e => set("role", e.target.value)}>
+          {opts.map(o => (
+            <option key={o.id} value={o.codigo ?? ""}>{o.valor}</option>
+          ))}
+        </select>
+      </Field>
+      <Field label="Telefone">
+        <input className={inputCls} value={form.phone} onChange={e => set("phone", e.target.value)} placeholder="+238 991 0000" />
+      </Field>
+      {needsSpecialty && (
+        <Field label="Especialidade">
+          <input className={inputCls} value={form.specialtyCode} onChange={e => set("specialtyCode", e.target.value)} placeholder="Ex: Cardiologia" />
+        </Field>
+      )}
+      <div className="col-span-2">
+        <label className="block text-[12px] font-semibold text-dim-700 mb-2">Dias de Trabalho</label>
+        <div className="flex gap-1.5 flex-wrap">
+          {DAYS.map(({ dow, label }) => (
+            <button
+              key={dow}
+              type="button"
+              onClick={() => toggleDay(dow)}
+              className={`px-3 py-1.5 rounded-[8px] text-[11px] font-semibold transition-colors border ${
+                form.days.includes(dow)
+                  ? "bg-brand-700 text-white border-brand-700"
+                  : "bg-white text-dim-500 border-dim-200 hover:border-dim-300"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <Field label="Início do Turno">
+        <input type="time" className={inputCls} value={form.shiftStart} onChange={e => set("shiftStart", e.target.value)} />
+      </Field>
+      <Field label="Fim do Turno">
+        <input type="time" className={inputCls} value={form.shiftEnd} onChange={e => set("shiftEnd", e.target.value)} />
+      </Field>
+    </div>
+  );
+}
+
+function AddUserModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { addMessage } = useMessage();
+  const queryClient = useQueryClient();
+  const [form, setForm] = useState<NewUserForm>(BLANK_USER);
+  const { data: profileOptions = [] } = useProfileOptions();
   const [errs, setErrs] = useState<Record<string, string>>({});
 
   function set<K extends keyof NewUserForm>(k: K, v: NewUserForm[K]) {
@@ -309,10 +384,7 @@ function AddUserModal({ open, onClose }: { open: boolean; onClose: () => void })
     setErrs(e => ({ ...e, [k]: "" }));
   }
   function toggleDay(dow: number) {
-    setForm(f => ({
-      ...f,
-      days: f.days.includes(dow) ? f.days.filter(d => d !== dow) : [...f.days, dow],
-    }));
+    setForm(f => ({ ...f, days: f.days.includes(dow) ? f.days.filter(d => d !== dow) : [...f.days, dow] }));
   }
 
   const mutation = useMutation({
@@ -339,89 +411,97 @@ function AddUserModal({ open, onClose }: { open: boolean; onClose: () => void })
     if (!form.fullName.trim()) e2.fullName = "Nome é obrigatório";
     if (!form.email.trim()) e2.email = "Email é obrigatório";
     if (Object.keys(e2).length) { setErrs(e2); return; }
-
     mutation.mutate({
       fullName: form.fullName.trim(),
       email: form.email.trim(),
       role: form.role,
       phone: form.phone.trim() || undefined,
       specialtyCode: form.specialtyCode.trim() || undefined,
-      availability: form.days.map(dow => ({
-        dayOfWeek: dow,
-        startTime: form.shiftStart,
-        endTime: form.shiftEnd,
-      })),
+      availability: form.days.map(dow => ({ dayOfWeek: dow, startTime: form.shiftStart, endTime: form.shiftEnd })),
     });
   }
-
-  const needsSpecialty = form.role === "doctor" || form.role === "nurse";
 
   return (
     <Modal open={open} onClose={onClose} title="Novo Utilizador" description="Adicionar colaborador ao sistema" size="lg">
       <form onSubmit={submit}>
-        <div className="px-6 py-5 grid grid-cols-2 gap-4">
-          <div className="col-span-2">
-            <Field label="Nome Completo *">
-              <input className={inputCls} value={form.fullName} onChange={e => set("fullName", e.target.value)} placeholder="Ex: Dra. Ana Silva" />
-              {errs.fullName && <p className="text-[11px] text-red-600 mt-1">{errs.fullName}</p>}
-            </Field>
-          </div>
-          <Field label="Email *">
-            <input type="email" className={inputCls} value={form.email} onChange={e => set("email", e.target.value)} placeholder="nome@maissaude.cv" />
-            {errs.email && <p className="text-[11px] text-red-600 mt-1">{errs.email}</p>}
-          </Field>
-          <Field label="Perfil">
-            <select className={inputCls} value={form.role} onChange={e => set("role", e.target.value)}>
-              {(profileOptions.length > 0 ? profileOptions : ROLE_OPTIONS.map(o => ({ id: o.value, valor: o.label, codigo: o.value }))).map(o => (
-                <option key={o.id} value={o.codigo ?? ""}>{o.valor}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Telefone">
-            <input className={inputCls} value={form.phone} onChange={e => set("phone", e.target.value)} placeholder="+238 991 0000" />
-          </Field>
-          {needsSpecialty && (
-            <Field label="Especialidade">
-              <input className={inputCls} value={form.specialtyCode} onChange={e => set("specialtyCode", e.target.value)} placeholder="Ex: Cardiologia" />
-            </Field>
-          )}
-          <div className={needsSpecialty ? "col-span-2" : "col-span-2"}>
-            <label className="block text-[12px] font-semibold text-dim-700 mb-2">Dias de Trabalho</label>
-            <div className="flex gap-1.5 flex-wrap">
-              {DAYS.map(({ dow, label }) => (
-                <button
-                  key={dow}
-                  type="button"
-                  onClick={() => toggleDay(dow)}
-                  className={`px-3 py-1.5 rounded-[8px] text-[11px] font-semibold transition-colors border ${
-                    form.days.includes(dow)
-                      ? "bg-brand-700 text-white border-brand-700"
-                      : "bg-white text-dim-500 border-dim-200 hover:border-dim-300"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <Field label="Início do Turno">
-            <input type="time" className={inputCls} value={form.shiftStart} onChange={e => set("shiftStart", e.target.value)} />
-          </Field>
-          <Field label="Fim do Turno">
-            <input type="time" className={inputCls} value={form.shiftEnd} onChange={e => set("shiftEnd", e.target.value)} />
-          </Field>
-        </div>
+        <UserFormFields form={form} errs={errs} profileOptions={profileOptions} set={set} toggleDay={toggleDay} />
         <div className="px-6 py-4 border-t border-dim-100 bg-dim-50/60 flex items-center gap-3">
-          <button
-            type="submit"
-            disabled={mutation.isPending}
-            className="bg-brand-700 hover:bg-brand-800 disabled:opacity-60 text-white font-semibold px-5 py-2.5 rounded-[10px] text-[13px] transition-colors shadow-[0_1px_2px_rgba(0,0,0,.08)]"
-          >
+          <button type="submit" disabled={mutation.isPending} className="bg-brand-700 hover:bg-brand-800 disabled:opacity-60 text-white font-semibold px-5 py-2.5 rounded-[10px] text-[13px] transition-colors shadow-[0_1px_2px_rgba(0,0,0,.08)]">
             {mutation.isPending ? "A criar…" : "Criar Utilizador"}
           </button>
-          <button type="button" onClick={onClose} className="border border-dim-200 bg-white hover:bg-dim-50 text-dim-700 font-medium px-5 py-2.5 rounded-[10px] text-[13px] transition-colors">
-            Cancelar
+          <button type="button" onClick={onClose} className="border border-dim-200 bg-white hover:bg-dim-50 text-dim-700 font-medium px-5 py-2.5 rounded-[10px] text-[13px] transition-colors">Cancelar</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function EditUserModal({ staff, onClose }: { staff: ApiStaff; onClose: () => void }) {
+  const { addMessage } = useMessage();
+  const queryClient = useQueryClient();
+  const { data: profileOptions = [] } = useProfileOptions();
+  const [errs, setErrs] = useState<Record<string, string>>({});
+  const [form, setForm] = useState<NewUserForm>(() => ({
+    fullName: staff.fullName,
+    email: staff.email,
+    role: staff.role,
+    phone: staff.phone ?? "",
+    specialtyCode: staff.specialtyCode ?? "",
+    days: staff.availability.map(a => a.dayOfWeek),
+    shiftStart: staff.availability[0]?.startTime ?? "08:00",
+    shiftEnd: staff.availability[0]?.endTime ?? "17:00",
+  }));
+
+  function set<K extends keyof NewUserForm>(k: K, v: NewUserForm[K]) {
+    setForm(f => ({ ...f, [k]: v }));
+    setErrs(e => ({ ...e, [k]: "" }));
+  }
+  function toggleDay(dow: number) {
+    setForm(f => ({ ...f, days: f.days.includes(dow) ? f.days.filter(d => d !== dow) : [...f.days, dow] }));
+  }
+
+  const mutation = useMutation({
+    mutationFn: (body: object) => fetch(`/api/staff/${staff.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then(async r => {
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.message ?? "Erro ao guardar"); }
+      return r.json();
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["bff-staff"] });
+      addMessage("Success", "Utilizador atualizado com sucesso!");
+      onClose();
+    },
+    onError: (e: Error) => addMessage("Error", e.message),
+  });
+
+  function submit(ev: React.FormEvent) {
+    ev.preventDefault();
+    const e2: Record<string, string> = {};
+    if (!form.fullName.trim()) e2.fullName = "Nome é obrigatório";
+    if (!form.email.trim()) e2.email = "Email é obrigatório";
+    if (Object.keys(e2).length) { setErrs(e2); return; }
+    mutation.mutate({
+      fullName: form.fullName.trim(),
+      email: form.email.trim(),
+      role: form.role,
+      phone: form.phone.trim() || undefined,
+      specialtyCode: form.specialtyCode.trim() || undefined,
+      availability: form.days.map(dow => ({ dayOfWeek: dow, startTime: form.shiftStart, endTime: form.shiftEnd })),
+    });
+  }
+
+  return (
+    <Modal open onClose={onClose} title="Editar Utilizador" description={`A editar ${staff.fullName}`} size="lg">
+      <form onSubmit={submit}>
+        <UserFormFields form={form} errs={errs} profileOptions={profileOptions} set={set} toggleDay={toggleDay} />
+        <div className="px-6 py-4 border-t border-dim-100 bg-dim-50/60 flex items-center gap-3">
+          <button type="submit" disabled={mutation.isPending} className="bg-brand-700 hover:bg-brand-800 disabled:opacity-60 text-white font-semibold px-5 py-2.5 rounded-[10px] text-[13px] transition-colors shadow-[0_1px_2px_rgba(0,0,0,.08)]">
+            {mutation.isPending ? "A guardar…" : "Guardar Alterações"}
           </button>
+          <button type="button" onClick={onClose} className="border border-dim-200 bg-white hover:bg-dim-50 text-dim-700 font-medium px-5 py-2.5 rounded-[10px] text-[13px] transition-colors">Cancelar</button>
         </div>
       </form>
     </Modal>
@@ -430,6 +510,7 @@ function AddUserModal({ open, onClose }: { open: boolean; onClose: () => void })
 
 function UsersTab() {
   const [addOpen, setAddOpen] = useState(false);
+  const [editing, setEditing] = useState<ApiStaff | null>(null);
   const { data: staff = [], isLoading } = useQuery<ApiStaff[]>({
     queryKey: ["bff-staff"],
     queryFn: () => fetch("/api/bff/staff").then(r => r.json()),
@@ -455,8 +536,8 @@ function UsersTab() {
         <table className="w-full border-collapse">
           <thead>
             <tr>
-              {["Colaborador", "Perfil", "Email", "Telefone", "Estado"].map(h => (
-                <th key={h} className="text-left text-[10px] font-bold uppercase tracking-[0.07em] text-dim-400 px-5 py-2.5 border-b border-dim-100 bg-dim-50">{h}</th>
+              {["Colaborador", "Perfil", "Email", "Telefone", "Estado", ""].map((h, i) => (
+                <th key={i} className="text-left text-[10px] font-bold uppercase tracking-[0.07em] text-dim-400 px-5 py-2.5 border-b border-dim-100 bg-dim-50">{h}</th>
               ))}
             </tr>
           </thead>
@@ -464,7 +545,7 @@ function UsersTab() {
             {isLoading ? (
               Array.from({ length: 4 }).map((_, i) => (
                 <tr key={i} className="animate-pulse">
-                  {[140, 80, 160, 100, 60].map((w, j) => (
+                  {[140, 80, 160, 100, 60, 40].map((w, j) => (
                     <td key={j} className="px-5 py-3.5 border-b border-dim-100">
                       <div className="h-3 bg-dim-100 rounded" style={{ width: w }} />
                     </td>
@@ -476,7 +557,7 @@ function UsersTab() {
               const todayDow = new Date().getDay();
               const onDuty = u.availability.some(a => a.dayOfWeek === todayDow);
               return (
-                <tr key={u.id} className="hover:bg-dim-50 transition-colors">
+                <tr key={u.id} className="hover:bg-dim-50 transition-colors group">
                   <td className="px-5 py-3.5 border-b border-dim-100">
                     <div className="flex items-center gap-2.5">
                       <div className="w-7 h-7 rounded-full bg-brand-100 text-brand-800 font-semibold text-[10px] flex items-center justify-center shrink-0">{initials}</div>
@@ -496,6 +577,14 @@ function UsersTab() {
                       {onDuty ? "Em serviço" : "Fora"}
                     </div>
                   </td>
+                  <td className="px-5 py-3.5 border-b border-dim-100 text-right">
+                    <button
+                      onClick={() => setEditing(u)}
+                      className="opacity-0 group-hover:opacity-100 inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold border border-dim-200 text-dim-600 rounded-[8px] hover:border-brand-400 hover:text-brand-700 transition-all"
+                    >
+                      Editar
+                    </button>
+                  </td>
                 </tr>
               );
             })}
@@ -503,6 +592,7 @@ function UsersTab() {
         </table>
       </div>
       <AddUserModal open={addOpen} onClose={() => setAddOpen(false)} />
+      {editing && <EditUserModal staff={editing} onClose={() => setEditing(null)} />}
     </>
   );
 }
