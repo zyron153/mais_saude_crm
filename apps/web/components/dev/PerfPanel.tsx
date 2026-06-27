@@ -42,10 +42,20 @@ function usePerfBootstrap() {
         (input instanceof Request ? input.method : "GET");
 
       const t0 = performance.now();
-      let res: Response;
+      let res: Response | undefined;
       try {
         res = await original.call(this, input, init);
       } catch (err) {
+        // Record the failed fetch so the perf panel shows it, then propagate
+        recordFetch({
+          url,
+          method,
+          durationMs: Math.round(performance.now() - t0),
+          status: 0,
+          sqlCount: 0,
+          sqlMs: 0,
+          requestId: "",
+        });
         throw err;
       }
       const durationMs = Math.round(performance.now() - t0);

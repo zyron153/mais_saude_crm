@@ -10,6 +10,7 @@ export const CreateStaffSchema = z.object({
   fullName: z.string().min(2).max(150),
   email: z.string().email(),
   role: z.enum(["admin", "doctor", "nurse", "receptionist", "lab_tech"]),
+  jobTitle: z.string().max(100).optional(),
   phone: z.string().max(30).optional(),
   specialtyCode: z.string().max(50).optional(),
   availability: z.array(AvailabilitySchema).optional(),

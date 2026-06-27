@@ -51,7 +51,7 @@ const CARD = "bg-white rounded-[16px] border border-dim-200 shadow-[0_1px_4px_rg
 
 const inputCls = "w-full border border-dim-200 rounded-[10px] px-3.5 py-2.5 text-[13px] text-dim-900 placeholder:text-dim-400 bg-white focus:outline-none focus:border-brand-500 focus:shadow-[0_0_0_3px_rgba(19,163,163,.12)] transition-all shadow-[0_1px_2px_rgba(0,0,0,.05)]";
 
-const BLANK_FORM = { patient: "", service: "", amount: "", notes: "" };
+const BLANK_FORM = { patientId: "", patient: "", service: "", amount: "", notes: "" };
 
 function SkeletonRow() {
   return (
@@ -78,7 +78,7 @@ export default function BillingPage() {
   function set(k: keyof typeof BLANK_FORM, v: string) { setForm((f) => ({ ...f, [k]: v })); }
 
   function addInvoice() {
-    if (!form.patient.trim()) return;
+    if (!form.patientId) return;
     const n = localInvoices.length + 1;
     setLocalInvoices((prev) => [{
       id: `local-${Date.now()}`,
@@ -106,6 +106,13 @@ export default function BillingPage() {
     queryFn: fetchBillingSummary,
     staleTime: 60_000,
   });
+
+  const { data: patientsData } = useQuery<{ data: { id: string; fullName: string }[] }>({
+    queryKey: ["patients-list"],
+    queryFn: () => fetch("/api/patients?limit=100").then(r => { if (!r.ok) throw new Error("patients"); return r.json(); }),
+    staleTime: 60_000,
+  });
+  const patientsList = patientsData?.data ?? [];
 
   return (
     <>
@@ -300,7 +307,19 @@ export default function BillingPage() {
       <div className="px-6 py-5 grid grid-cols-2 gap-4">
         <div className="col-span-2">
           <label className="block text-[12px] font-semibold text-dim-700 mb-1.5">Paciente *</label>
-          <input value={form.patient} onChange={(e) => set("patient", e.target.value)} placeholder="Nome do paciente" className={inputCls} />
+          <select
+            value={form.patientId}
+            onChange={(e) => {
+              const p = patientsList.find((pt) => pt.id === e.target.value);
+              setForm((f) => ({ ...f, patientId: e.target.value, patient: p?.fullName ?? "" }));
+            }}
+            className={inputCls}
+          >
+            <option value="">Selecionar paciente…</option>
+            {patientsList.map((p) => (
+              <option key={p.id} value={p.id}>{p.fullName}</option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="block text-[12px] font-semibold text-dim-700 mb-1.5">Serviço / Descrição</label>

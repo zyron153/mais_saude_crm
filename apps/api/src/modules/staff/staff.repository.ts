@@ -8,6 +8,7 @@ const STAFF_SELECT = {
   fullName: true,
   email: true,
   role: true,
+  jobTitle: true,
   specialtyCode: true,
   phone: true,
   availability: {
@@ -43,6 +44,7 @@ export class StaffRepository {
         ...(dto.fullName !== undefined && { fullName: dto.fullName }),
         ...(dto.email !== undefined && { email: dto.email }),
         ...(dto.role !== undefined && { role: dto.role }),
+        ...(dto.jobTitle !== undefined && { jobTitle: dto.jobTitle ?? null }),
         ...(dto.phone !== undefined && { phone: dto.phone ?? null }),
         ...(dto.specialtyCode !== undefined && { specialtyCode: dto.specialtyCode ?? null }),
         ...(avail !== undefined && {
@@ -71,6 +73,7 @@ export class StaffRepository {
         fullName: dto.fullName,
         email: dto.email,
         role: dto.role,
+        jobTitle: dto.jobTitle ?? null,
         phone: dto.phone ?? null,
         specialtyCode: dto.specialtyCode ?? null,
         ...(avail.length

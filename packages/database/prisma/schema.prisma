@@ -123,6 +123,7 @@ model Staff {
   fullName      String    @db.VarChar(150)
   email         String    @unique @db.VarChar(150)
   role          StaffRole
+  jobTitle      String?   @db.VarChar(100)
   specialtyCode String?   @db.VarChar(50)
   phone         String?   @db.VarChar(30)
   deletedAt     DateTime?
@@ -518,6 +519,22 @@ model Setting {
   updatedAt DateTime @updatedAt
 
   @@map("settings")
+}
+
+model Parametrizacao {
+  id        Int       @id @default(autoincrement())
+  nome      String    @db.VarChar(100)
+  valor     String    @db.VarChar(191)
+  codigo    String?   @db.VarChar(100)
+  descricao String?   @db.VarChar(255)
+  ordem     Int       @default(0)
+  ativo     Boolean   @default(true)
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([nome, ativo, deletedAt])
+  @@map("parametrizacoes")
 }
 
 model AuditLog {

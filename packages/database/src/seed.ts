@@ -284,7 +284,7 @@ async function main() {
   }
 
   // ─── Sample Patients ────────────────────────────────────────────────────────
-  const [p1, p2, p3, p4, p5] = await Promise.all([
+  const [p1, p2, p3, p4, p5] = await Promise.all([  // p6 (João Duarte) seeded but not used in appointments
     prisma.patient.upsert({
       where: { phone: "+2389800001" },
       update: {},
@@ -345,6 +345,19 @@ async function main() {
         dateOfBirth: new Date("1955-09-12"),
         gender: "male",
         phone: "+2389800005",
+        consentGiven: true,
+        consentGivenAt: new Date(),
+      },
+    }),
+    prisma.patient.upsert({
+      where: { phone: "+9656565" },
+      update: {},
+      create: {
+        fullName: "João Duarte",
+        dateOfBirth: new Date("2006-01-02"),
+        gender: "male",
+        phone: "+9656565",
+        email: "teste@mail.com",
         consentGiven: true,
         consentGivenAt: new Date(),
       },
@@ -411,8 +424,68 @@ async function main() {
     });
   }
 
+  // ─── Parametrizações ───────────────────────────────────────────────────────
+  // ponytail: group-level idempotency — skip entire group if it already has rows
+  async function seedGroup(nome: string, rows: { valor: string; codigo?: string; descricao?: string }[]) {
+    const existing = await prisma.parametrizacao.count({ where: { nome, deletedAt: null } });
+    if (existing > 0) return 0;
+    await prisma.parametrizacao.createMany({
+      data: rows.map((r, i) => ({ nome, valor: r.valor, codigo: r.codigo ?? null, descricao: r.descricao ?? null, ordem: (i + 1) * 10 })),
+    });
+    return rows.length;
+  }
+
+  const paramCounts = await Promise.all([
+    seedGroup("FUNCAO", [
+      { valor: "Médico/a",                    codigo: "doctor"       },
+      { valor: "Enfermeiro/a",                codigo: "nurse"        },
+      { valor: "Recepcionista",               codigo: "receptionist" },
+      { valor: "Técnico/a de Laboratório",    codigo: "lab_tech"     },
+      { valor: "Administrador/a",             codigo: "admin"        },
+    ]),
+    seedGroup("ESPECIALIDADE", [
+      { valor: "Clínica Geral",   codigo: "CLINICA-GERAL" },
+      { valor: "Pediatria",       codigo: "PEDIATRIA"     },
+      { valor: "Cardiologia",     codigo: "CARDIOLOGIA"   },
+      { valor: "Ginecologia",     codigo: "GINECOLOGIA"   },
+      { valor: "Medicina Interna",codigo: "MED-INTERNA"   },
+      { valor: "Ortopedia",       codigo: "ORTOPEDIA"     },
+      { valor: "Dermatologia",    codigo: "DERMATOLOGIA"  },
+      { valor: "Oftalmologia",    codigo: "OFTALMOLOGIA"  },
+      { valor: "Medicina Dentária",codigo: "DENTARIA"     },
+    ]),
+    seedGroup("TIPO_EXAME", [
+      { valor: "Análise Laboratorial", codigo: "lab"   },
+      { valor: "Imagem",               codigo: "image" },
+      { valor: "Cardiologia",          codigo: "ecg"   },
+      { valor: "Outro",                codigo: "other" },
+    ]),
+    seedGroup("TIPO_CONSULTA", [
+      { valor: "Rotina",          codigo: "routine"   },
+      { valor: "Pós-Operatório",  codigo: "post_op"   },
+      { valor: "Seguimento",      codigo: "follow_up" },
+      { valor: "Urgente",         codigo: "urgent"    },
+    ]),
+    seedGroup("TIPO_PLANO_SAUDE", [
+      { valor: "Familiar",    codigo: "familiar"   },
+      { valor: "Corporativo", codigo: "corp"       },
+      { valor: "Particular",  codigo: "particular" },
+    ]),
+    // codigo = service UUID so the appointment form's serviceId maps directly
+    seedGroup("TIPO_SERVICO", [
+      { valor: "Consulta Geral",          codigo: services.find(s => s.code === "CONS-GERAL")?.id   },
+      { valor: "Consulta Especialidade",  codigo: services.find(s => s.code === "CONS-ESP")?.id     },
+      { valor: "Consulta Dentária",       codigo: services.find(s => s.code === "DENT-CONS")?.id    },
+      { valor: "Exame Laboratorial",      codigo: services.find(s => s.code === "EXAM-LAB")?.id     },
+      { valor: "Ecografia",               codigo: services.find(s => s.code === "EXAM-ULTRA")?.id   },
+      { valor: "Visita Domiciliária",     codigo: services.find(s => s.code === "HOME-VISIT")?.id   },
+    ]),
+  ]);
+
+  const totalParams = paramCounts.reduce((a, b) => a + b, 0);
+
   console.warn(
-    `Seeded 3 companies, 8 health plan products, ${services.length} services, ${rooms.length} rooms, 7 staff, 5 patients, ${appointmentsData.length} appointments, ${holidays.length} public holidays.`
+    `Seeded 3 companies, 8 health plan products, ${services.length} services, ${rooms.length} rooms, 7 staff, 6 patients, ${appointmentsData.length} appointments, ${holidays.length} public holidays, ${totalParams} parametrizações.`
   );
 }
 

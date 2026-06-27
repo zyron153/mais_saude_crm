@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { FileSearch, Clock, CheckCircle, Upload, FlaskConical, Plus, ChevronRight } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 
@@ -77,6 +78,13 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+const FALLBACK_CATEGORIES = [
+  { value: "lab",   label: "Análise Laboratorial" },
+  { value: "image", label: "Imagem"               },
+  { value: "ecg",   label: "Cardiologia"           },
+  { value: "other", label: "Outro"                 },
+];
+
 export default function ExamsPage() {
   const [exams, setExams] = useState<Exam[]>(EXAMS_INITIAL);
   const [newOpen, setNewOpen] = useState(false);
@@ -84,6 +92,15 @@ export default function ExamsPage() {
   const [form, setForm] = useState({
     patient: "", type: "", category: "lab", requestedBy: "", urgent: false,
   });
+
+  const { data: categoryParams = [] } = useQuery<{ id: number; valor: string; codigo: string | null }[]>({
+    queryKey: ["parametrizacao", "TIPO_EXAME"],
+    queryFn: () => fetch("/api/parametrizacao/TIPO_EXAME").then(r => r.json()),
+    staleTime: 120_000,
+  });
+  const categoryOptions = categoryParams.length > 0
+    ? categoryParams.map(p => ({ value: p.codigo ?? p.valor, label: p.valor }))
+    : FALLBACK_CATEGORIES;
 
   function set(k: string, v: string | boolean) { setForm(f => ({ ...f, [k]: v })); }
 
@@ -256,10 +273,7 @@ export default function ExamsPage() {
           </div>
           <Field label="Categoria">
             <select value={form.category} onChange={e => set("category", e.target.value)} className={inputCls}>
-              <option value="lab">Análise Laboratorial</option>
-              <option value="image">Imagem</option>
-              <option value="ecg">Cardiologia</option>
-              <option value="other">Outro</option>
+              {categoryOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </Field>
           <Field label="Solicitado por">

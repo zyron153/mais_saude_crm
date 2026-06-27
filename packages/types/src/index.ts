@@ -5,3 +5,4 @@ export * from "./common";
 export * from "./health-plan";
 export * from "./public-booking";
 export * from "./staff";
+export * from "./parametrizacao";

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Home, Clock, CheckCircle, MapPin, Plus, ChevronRight, AlertTriangle } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 
@@ -64,10 +65,26 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+const FALLBACK_VISIT_TYPES = [
+  { value: "routine",   label: "Rotina"         },
+  { value: "post_op",   label: "Pós-Operatório" },
+  { value: "follow_up", label: "Seguimento"      },
+  { value: "urgent",    label: "Urgente"         },
+];
+
 export default function VisitsPage() {
   const [visits, setVisits] = useState<Visit[]>(VISITS_INITIAL);
   const [newOpen, setNewOpen] = useState(false);
   const [viewingVisit, setViewingVisit] = useState<Visit | null>(null);
+
+  const { data: visitTypeParams = [] } = useQuery<{ id: number; valor: string; codigo: string | null }[]>({
+    queryKey: ["parametrizacao", "TIPO_CONSULTA"],
+    queryFn: () => fetch("/api/parametrizacao/TIPO_CONSULTA").then(r => r.json()),
+    staleTime: 120_000,
+  });
+  const visitTypeOptions = visitTypeParams.length > 0
+    ? visitTypeParams.map(p => ({ value: p.codigo ?? p.valor, label: p.valor }))
+    : FALLBACK_VISIT_TYPES;
   const [form, setForm] = useState({
     patient: "", address: "", zone: "", type: "routine",
     assignedTo: "", scheduledAt: "", duration: "30", priority: "normal",
@@ -305,10 +322,7 @@ export default function VisitsPage() {
           </Field>
           <Field label="Tipo">
             <select value={form.type} onChange={e => set("type", e.target.value)} className={inputCls}>
-              <option value="routine">Rotina</option>
-              <option value="post_op">Pós-Operatório</option>
-              <option value="follow_up">Seguimento</option>
-              <option value="urgent">Urgente</option>
+              {visitTypeOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </Field>
           <Field label="Profissional">

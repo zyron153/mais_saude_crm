@@ -68,6 +68,12 @@ function Field({ label, required, hint, children }: { label: string; required?: 
 
 /* ─── Page ───────────────────────────────────────────────────── */
 
+const FALLBACK_PLAN_TYPES = [
+  { value: "familiar",   label: "Familiar"      },
+  { value: "corp",       label: "Corporativo"   },
+  { value: "particular", label: "Particular"    },
+];
+
 export default function HealthPlansPage() {
   const queryClient = useQueryClient();
   const { addMessage } = useMessage();
@@ -75,6 +81,15 @@ export default function HealthPlansPage() {
   const [managingProduct, setManagingProduct] = useState<PlanProduct | null>(null);
   const [deactivateConfirm, setDeactivateConfirm] = useState(false);
   const [form, setForm] = useState({ name: "", code: "", type: "familiar", coverage: "80", monthlyFee: "" });
+
+  const { data: planTypeParams = [] } = useQuery<{ id: number; valor: string; codigo: string | null }[]>({
+    queryKey: ["parametrizacao", "TIPO_PLANO_SAUDE"],
+    queryFn: () => fetch("/api/parametrizacao/TIPO_PLANO_SAUDE").then(r => r.json()),
+    staleTime: 120_000,
+  });
+  const planTypeOptions = planTypeParams.length > 0
+    ? planTypeParams.map(p => ({ value: p.codigo ?? p.valor, label: p.valor }))
+    : FALLBACK_PLAN_TYPES;
   const [formErr, setFormErr] = useState("");
 
   function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
@@ -360,9 +375,7 @@ export default function HealthPlansPage() {
           </Field>
           <Field label="Tipo">
             <select value={form.type} onChange={e => set("type", e.target.value)} className={inputCls}>
-              <option value="familiar">Familiar</option>
-              <option value="corp">Corporativo</option>
-              <option value="particular">Particular</option>
+              {planTypeOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </Field>
           <Field label="Cobertura (%)">

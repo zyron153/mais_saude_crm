@@ -10,6 +10,7 @@ type StaffMember = {
   id: string;
   name: string;
   role: "doctor" | "nurse" | "receptionist" | "technician";
+  jobTitle: string | null;
   specialty?: string;
   phone: string;
   email: string;
@@ -25,10 +26,13 @@ type ApiStaff = {
   fullName: string;
   email: string;
   role: string;
+  jobTitle: string | null;
   phone: string | null;
   specialtyCode: string | null;
   availability: { dayOfWeek: number; startTime: string; endTime: string }[];
 };
+
+type ParamOption = { id: number; valor: string; codigo: string | null };
 
 const DOW_NAMES: Record<number, string> = { 0: "Dom", 1: "Seg", 2: "Ter", 3: "Qua", 4: "Qui", 5: "Sex", 6: "Sáb" };
 
@@ -50,6 +54,7 @@ function toUiMember(s: ApiStaff, idx: number): StaffMember {
     id: s.id,
     name: s.fullName,
     role: DB_ROLE_MAP[s.role] ?? "receptionist",
+    jobTitle: s.jobTitle ?? null,
     specialty: s.specialtyCode ?? undefined,
     phone: s.phone ?? "—",
     email: s.email,
@@ -107,25 +112,36 @@ function FieldRow({ label, required, error, children }: {
 }
 
 type FormValues = {
-  name: string; role: StaffMember["role"]; specialty: string;
+  name: string; role: StaffMember["role"]; jobTitle: string; specialty: string;
   phone: string; email: string;
   shiftStart: string; shiftEnd: string; days: number[];
 };
 
 const BLANK_FORM: FormValues = {
-  name: "", role: "doctor", specialty: "", phone: "", email: "",
+  name: "", role: "doctor", jobTitle: "", specialty: "", phone: "", email: "",
   shiftStart: "08:00", shiftEnd: "17:00", days: [1, 2, 3, 4, 5],
 };
 
-function StaffForm({ initialValues, onSave, onCancel, submitLabel, saving }: {
+const FALLBACK_ROLES: ParamOption[] = [
+  { id: 1, valor: "Médico/a",      codigo: "doctor"       },
+  { id: 2, valor: "Enfermeiro/a",  codigo: "nurse"        },
+  { id: 3, valor: "Recepcionista", codigo: "receptionist" },
+  { id: 4, valor: "Técnico/a",     codigo: "lab_tech"     },
+];
+
+function StaffForm({ initialValues, onSave, onCancel, submitLabel, saving, jobTitleOptions, specialtyOptions }: {
   initialValues?: FormValues;
   onSave: (v: FormValues) => void;
   onCancel: () => void;
   submitLabel: string;
   saving?: boolean;
+  jobTitleOptions: ParamOption[];
+  specialtyOptions: ParamOption[];
 }) {
   const [form, setForm] = useState<FormValues>(initialValues ?? BLANK_FORM);
   const [errs, setErrs] = useState<Record<string, string>>({});
+
+  const jobTitles = jobTitleOptions.length > 0 ? jobTitleOptions : FALLBACK_ROLES;
 
   function set<K extends keyof FormValues>(k: K, v: FormValues[K]) {
     setForm((prev) => ({ ...prev, [k]: v }));
@@ -135,6 +151,15 @@ function StaffForm({ initialValues, onSave, onCancel, submitLabel, saving }: {
     setForm((f) => ({
       ...f,
       days: f.days.includes(dow) ? f.days.filter((d) => d !== dow) : [...f.days, dow],
+    }));
+  }
+  function selectJobTitle(val: string) {
+    const entry = jobTitles.find((t) => (t.codigo ?? t.valor) === val);
+    if (!entry) return;
+    setForm((f) => ({
+      ...f,
+      jobTitle: entry.valor,
+      role: (DB_ROLE_MAP[entry.codigo ?? ""] ?? "receptionist") as StaffMember["role"],
     }));
   }
 
@@ -148,6 +173,12 @@ function StaffForm({ initialValues, onSave, onCancel, submitLabel, saving }: {
     onSave(form);
   }
 
+  // derive selected job title value for the select element
+  const selectedJobTitleValue =
+    jobTitles.find((t) => t.valor === form.jobTitle)?.codigo ??
+    jobTitles.find((t) => t.codigo === UI_TO_DB_ROLE[form.role])?.codigo ??
+    jobTitles[0]?.codigo ?? "";
+
   return (
     <form onSubmit={submit}>
       <div className="px-6 py-5 grid grid-cols-2 gap-4">
@@ -158,16 +189,20 @@ function StaffForm({ initialValues, onSave, onCancel, submitLabel, saving }: {
         </div>
 
         <FieldRow label="Função" required>
-          <select value={form.role} onChange={(e) => set("role", e.target.value as StaffMember["role"])} className={inputCls}>
-            <option value="doctor">Médico/a</option>
-            <option value="nurse">Enfermeiro/a</option>
-            <option value="receptionist">Recepcionista</option>
-            <option value="technician">Técnico/a</option>
+          <select value={selectedJobTitleValue} onChange={(e) => selectJobTitle(e.target.value)} className={inputCls}>
+            {jobTitles.map((t) => <option key={t.id} value={t.codigo ?? t.valor}>{t.valor}</option>)}
           </select>
         </FieldRow>
 
         <FieldRow label="Especialidade">
-          <input value={form.specialty} onChange={(e) => set("specialty", e.target.value)} placeholder="Ex: Cardiologia" className={inputCls} />
+          {specialtyOptions.length > 0 ? (
+            <select value={form.specialty} onChange={(e) => set("specialty", e.target.value)} className={inputCls}>
+              <option value="">— Seleccionar —</option>
+              {specialtyOptions.map((s) => <option key={s.id} value={s.codigo ?? s.valor}>{s.valor}</option>)}
+            </select>
+          ) : (
+            <input value={form.specialty} onChange={(e) => set("specialty", e.target.value)} placeholder="Ex: Cardiologia" className={inputCls} />
+          )}
         </FieldRow>
 
         <FieldRow label="Telefone" required error={errs.phone}>
@@ -230,6 +265,7 @@ function toApiBody(form: FormValues) {
     fullName: form.name.trim(),
     email: form.email.trim(),
     role: UI_TO_DB_ROLE[form.role] ?? form.role,
+    jobTitle: form.jobTitle.trim() || undefined,
     phone: form.phone.trim() || undefined,
     specialtyCode: form.specialty.trim() || undefined,
     availability: form.days.map((dow) => ({
@@ -244,6 +280,7 @@ function toFormValues(m: StaffMember): FormValues {
   return {
     name: m.name,
     role: m.role,
+    jobTitle: m.jobTitle ?? "",
     specialty: m.specialty ?? "",
     phone: m.phone === "—" ? "" : m.phone,
     email: m.email,
@@ -262,6 +299,18 @@ export default function StaffPage() {
   const { data: apiStaff = [], isLoading } = useQuery<ApiStaff[]>({
     queryKey: ["bff-staff"],
     queryFn: () => fetch("/api/bff/staff").then((r) => r.json()),
+  });
+
+  const { data: jobTitleOptions = [] } = useQuery<ParamOption[]>({
+    queryKey: ["parametrizacao", "FUNCAO"],
+    queryFn: () => fetch("/api/parametrizacao/FUNCAO").then((r) => r.json()),
+    staleTime: 120_000,
+  });
+
+  const { data: specialtyOptions = [] } = useQuery<ParamOption[]>({
+    queryKey: ["parametrizacao", "ESPECIALIDADE"],
+    queryFn: () => fetch("/api/parametrizacao/ESPECIALIDADE").then((r) => r.json()),
+    staleTime: 120_000,
   });
 
   const staff = apiStaff.map(toUiMember);
@@ -515,6 +564,8 @@ export default function StaffPage() {
           onCancel={() => setNewOpen(false)}
           submitLabel="Adicionar Colaborador"
           saving={createMutation.isPending}
+          jobTitleOptions={jobTitleOptions}
+          specialtyOptions={specialtyOptions}
         />
       </Modal>
 
@@ -533,6 +584,8 @@ export default function StaffPage() {
             onCancel={() => setEditingStaff(null)}
             submitLabel="Guardar Alterações"
             saving={editMutation.isPending}
+            jobTitleOptions={jobTitleOptions}
+            specialtyOptions={specialtyOptions}
           />
         )}
       </Modal>

@@ -90,6 +90,7 @@ export class BffService {
         fullName: true,
         email: true,
         role: true,
+        jobTitle: true,
         phone: true,
         specialtyCode: true,
         availability: {

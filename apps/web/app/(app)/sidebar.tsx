@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, CalendarDays, Users, MessageCircle,
   Shield, FileSearch, Receipt, ClipboardList,
-  Users2, Home, BarChart2, Settings, ChevronRight,
+  Users2, Home, BarChart2, Settings, SlidersHorizontal, ChevronRight,
 } from "lucide-react";
 
 const NAV = [
@@ -32,7 +32,8 @@ const NAV = [
   {
     section: "Sistema",
     items: [
-      { href: "/settings", label: "Configurações", icon: Settings },
+      { href: "/settings",         label: "Configurações",   icon: Settings           },
+      { href: "/parametrizacoes",  label: "Parametrizações", icon: SlidersHorizontal  },
     ],
   },
 ];

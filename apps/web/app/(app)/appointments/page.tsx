@@ -141,10 +141,10 @@ export default function AppointmentsPage() {
     queryFn: () => fetch("/api/staff").then((r) => r.json()),
     staleTime: 60_000,
   });
-  const { data: servicesList } = useQuery<{ id: string; name: string }[]>({
-    queryKey: ["services-list"],
-    queryFn: () => fetch("/api/services").then((r) => r.json()),
-    staleTime: 60_000,
+  const { data: servicesList = [] } = useQuery<{ id: number; valor: string; codigo: string | null }[]>({
+    queryKey: ["parametrizacao", "TIPO_SERVICO"],
+    queryFn: () => fetch("/api/parametrizacao/TIPO_SERVICO").then((r) => r.json()),
+    staleTime: 120_000,
   });
 
   const { data: detail, isLoading: detailLoading } = useQuery<AppointmentDetail>({
@@ -453,8 +453,8 @@ export default function AppointmentsPage() {
           <label className="block text-[12px] font-semibold text-dim-700 mb-1.5">Serviço *</label>
           <select value={form.serviceId} onChange={(e) => set("serviceId", e.target.value)} className={inputCls}>
             <option value="">Selecionar serviço…</option>
-            {servicesList?.map((s) => (
-              <option key={s.id} value={s.id}>{s.name}</option>
+            {servicesList.map((s) => (
+              <option key={s.id} value={s.codigo ?? ""}>{s.valor}</option>
             ))}
           </select>
         </div>
