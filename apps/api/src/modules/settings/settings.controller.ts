@@ -24,6 +24,12 @@ export class SettingsController {
     return this.service.upsert("notifications", body);
   }
 
+  @Patch("access-control")
+  @Roles("admin")
+  updateAccessControl(@Body() body: Record<string, unknown>) {
+    return this.service.upsert("access_control", body);
+  }
+
   @Patch("integration/:key")
   @Roles("admin")
   updateIntegration(
