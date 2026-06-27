@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { use, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
@@ -30,7 +30,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-export default function PatientEditPage({ params }: { params: { id: string } }) {
+export default function PatientEditPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const router = useRouter();
   const { addMessage } = useMessage();
   const [form, setForm] = useState<FormState>({
@@ -40,8 +41,8 @@ export default function PatientEditPage({ params }: { params: { id: string } }) 
   const [error, setError] = useState<string | null>(null);
 
   const { data: patient, isLoading } = useQuery<Patient>({
-    queryKey: ["patient", params.id],
-    queryFn: () => fetch(`/api/patients/${params.id}`).then((r) => r.json()),
+    queryKey: ["patient", id],
+    queryFn: () => fetch(`/api/patients/${id}`).then((r) => r.json()),
     staleTime: 60_000,
   });
 
@@ -76,7 +77,7 @@ export default function PatientEditPage({ params }: { params: { id: string } }) 
         email: form.email.trim() || undefined,
         address: form.address.trim() || undefined,
       };
-      const res = await fetch(`/api/patients/${params.id}`, {
+      const res = await fetch(`/api/patients/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -86,7 +87,7 @@ export default function PatientEditPage({ params }: { params: { id: string } }) 
         throw new Error(err.message ?? "Erro ao guardar");
       }
       addMessage("Success", "Dados guardados com sucesso!");
-      router.push(`/patients/${params.id}`);
+      router.push(`/patients/${id}`);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Erro desconhecido";
       setError(msg);
@@ -108,7 +109,7 @@ export default function PatientEditPage({ params }: { params: { id: string } }) 
   return (
     <div className="flex flex-col gap-5">
       <Link
-        href={`/patients/${params.id}`}
+        href={`/patients/${id}`}
         className="inline-flex items-center gap-1.5 text-[12px] text-dim-500 hover:text-dim-800 transition-colors font-medium"
       >
         <ArrowLeft className="w-3.5 h-3.5" /> Paciente
@@ -161,7 +162,7 @@ export default function PatientEditPage({ params }: { params: { id: string } }) 
               {saving ? "A guardar…" : "Guardar alterações"}
             </button>
             <Link
-              href={`/patients/${params.id}`}
+              href={`/patients/${id}`}
               className="text-[13px] text-dim-500 hover:text-dim-800 px-3 py-2.5 transition-colors"
             >
               Cancelar

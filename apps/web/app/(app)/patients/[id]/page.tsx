@@ -1,5 +1,6 @@
 "use client";
 
+import { use } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, differenceInYears } from "date-fns";
 import { pt } from "date-fns/locale";
@@ -38,10 +39,11 @@ const EVENT_MAP: Record<string, { icon: typeof CalendarDays; bg: string; color: 
 
 const CARD = "bg-white rounded-[16px] border border-dim-200 shadow-[0_1px_4px_rgba(0,0,0,.08),0_0_0_1px_rgba(0,0,0,.03)] overflow-hidden";
 
-export default function PatientProfilePage({ params }: { params: { id: string } }) {
+export default function PatientProfilePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const { data, isLoading } = useQuery({
-    queryKey: ["patient-screen", params.id],
-    queryFn: () => fetchPatientScreen(params.id),
+    queryKey: ["patient-screen", id],
+    queryFn: () => fetchPatientScreen(id),
     staleTime: 60_000,
   });
 

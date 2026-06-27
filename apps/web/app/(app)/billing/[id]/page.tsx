@@ -1,5 +1,6 @@
 "use client";
 
+import { use } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -47,12 +48,13 @@ const inputCls = "w-full border border-dim-200 rounded-[10px] px-3.5 py-2.5 text
 
 const CARD = "bg-white rounded-[16px] border border-dim-200 shadow-[0_1px_4px_rgba(0,0,0,.08),0_0_0_1px_rgba(0,0,0,.03)] overflow-hidden";
 
-export default function InvoiceDetailPage({ params }: { params: { id: string } }) {
+export default function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const queryClient = useQueryClient();
 
   const { data: invoice, isLoading } = useQuery({
-    queryKey: ["invoice", params.id],
-    queryFn: () => fetchInvoice(params.id),
+    queryKey: ["invoice", id],
+    queryFn: () => fetchInvoice(id),
     staleTime: 60_000,
   });
 
@@ -62,9 +64,9 @@ export default function InvoiceDetailPage({ params }: { params: { id: string } }
   });
 
   const payMutation = useMutation({
-    mutationFn: (data: RecordPaymentDto) => recordPayment(params.id, data),
+    mutationFn: (data: RecordPaymentDto) => recordPayment(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["invoice", params.id] });
+      queryClient.invalidateQueries({ queryKey: ["invoice", id] });
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["billing-summary"] });
       reset();
@@ -72,7 +74,7 @@ export default function InvoiceDetailPage({ params }: { params: { id: string } }
   });
 
   const receiptMutation = useMutation({
-    mutationFn: () => getReceiptUrl(params.id),
+    mutationFn: () => getReceiptUrl(id),
     onSuccess: ({ url }) => window.open(url, "_blank"),
   });
 
